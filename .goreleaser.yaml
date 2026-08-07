@@ -1,0 +1,60 @@
+version: 2
+
+project_name: anp-cli
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: anp
+    main: ./cmd/anp-cli
+    binary: anp-cli
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/ANPWorld/anp-cli/internal/buildinfo.Version={{ .Version }}
+      - -X github.com/ANPWorld/anp-cli/internal/buildinfo.Commit={{ .Commit }}
+      - -X github.com/ANPWorld/anp-cli/internal/buildinfo.Date={{ .Date }}
+
+archives:
+  - id: anp
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: true
+    files:
+      - LICENSE
+      - README.md
+      - docs/protocol.md
+      - skills/SKILL.md
+
+nfpms:
+  - id: anp
+    package_name: anp
+    vendor: anp-cli
+    homepage: https://github.com/ANPWorld/anp-cli
+    license: MIT
+    formats:
+      - deb
+      - rpm
+
+brews:
+  - name: anp
+    homepage: https://github.com/ANPWorld/anp-cli
+    description: Agent Network Protocol CLI
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - Merge pull request

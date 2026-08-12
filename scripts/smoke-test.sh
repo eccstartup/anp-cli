@@ -12,7 +12,6 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="$REPO_ROOT/bin/anp-cli"
-MOCK_BIN="$REPO_ROOT/bin/mock"
 
 WORK_A="/tmp/anp-smoke-a"   # agent alice 的工作区
 WORK_B="/tmp/anp-smoke-b"   # agent bob 的工作区
@@ -80,11 +79,10 @@ trap cleanup EXIT
 # ---------------------------------------------------------------- 0. 构建
 say "== 0. 构建 =="
 ( cd "$REPO_ROOT" && go build -o "$BIN" ./cmd/anp-cli ) || { bad "build anp-cli"; exit 1; }
-( cd "$REPO_ROOT" && go build -o "$MOCK_BIN" ./cmd/mock ) || { bad "build mock"; exit 1; }
 
-# ---------------------------------------------------------------- mock 后端
+# ---------------------------------------------------------------- mock 后端（内联 go run）
 say "== 启动 mock 后端 =="
-"$MOCK_BIN" >/tmp/anp-smoke-mockurl.txt 2>/dev/null &
+go run -mod=mod "$REPO_ROOT/scripts/mockrun/main.go" >/tmp/anp-smoke-mockurl.txt 2>/dev/null &
 MOCK_PID=$!
 for _ in $(seq 1 40); do [ -s /tmp/anp-smoke-mockurl.txt ] && break; sleep 0.25; done
 MOCK_URL="$(cat /tmp/anp-smoke-mockurl.txt 2>/dev/null)"

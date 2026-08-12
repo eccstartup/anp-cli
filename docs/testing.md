@@ -9,12 +9,11 @@
 ```bash
 cd /Users/eccstartup/code/claude/anp-cli
 go build -o bin/anp-cli ./cmd/anp-cli     # 构建 CLI
-go build -o bin/mock ./cmd/mock           # 构建假服务器
 ```
 
 **开一个终端 A，起假服务器（保持它一直跑）：**
 ```bash
-./bin/mock
+go run ./scripts/mockrun
 # 输出形如: http://127.0.0.1:54321   ← 记下这个地址，下面用 $MOCK 代替
 ```
 
@@ -153,6 +152,6 @@ export ANP_BACKEND=http://127.0.0.1:54321   # 换成你终端 A 看到的实际�
 
 ## 收尾清理
 ```bash
-pkill -f 'bin/mock'      # 停掉假服务器
+pkill -f mockrun      # 停掉假服务器
 rm -rf /tmp/anp-hw /tmp/anp-hw-bob /tmp/anp-web /tmp/h.txt /tmp/h.proof.json
 ```

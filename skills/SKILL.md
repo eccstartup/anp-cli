@@ -22,6 +22,7 @@ Agent Network Protocol (ANP) CLI —— 管理 DID 身份、消息、群组、�
 |------|------|------|
 | 首次使用/装好 | `anp-cli init`，或 `ANP_BACKEND=... anp-cli init` | [00-install.md](references/00-install.md) |
 | 我是谁 / 解析别人 | `anp-cli whoami` / `anp-cli id resolve <did\|handle>` | [01-id.md](references/01-id.md) |
+| 多身份管理 | `anp-cli id list` / `id use <name>` / `--identity <name>` | [01-id.md](references/01-id.md) |
 | 注册 handle | `anp-cli register --handle <h> [--email\|--phone]` | [01-id.md](references/01-id.md) |
 | 发消息 / 收消息 / 历史 | `anp-cli dm <did> "..."` / `anp-cli inbox` / `anp-cli history <did>` | [02-msg.md](references/02-msg.md) |
 | E2EE 加密 | 收方先 `anp-cli e2ee init`，发方 `anp-cli msg send --secure on` | [02-msg.md](references/02-msg.md) |

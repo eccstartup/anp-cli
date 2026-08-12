@@ -95,6 +95,19 @@ func TestEndToEndAgainstMockBackend(t *testing.T) {
 		t.Fatalf("register result: %s", string(registerResult.stdout))
 	}
 
+	// squatting: a second identity trying the same handle must get handle_taken.
+	bobWorkspace := t.TempDir()
+	requireOK(t, runCLI(t, bobWorkspace, baseURL, "init", "bob"))
+	squat := runCLI(t, bobWorkspace, baseURL, "register", "--handle", "alice.agent")
+	squatEnvelope := parseEnvelope(t, squat.stdout)
+	if code, _ := squatEnvelope["error"].(map[string]any)["code"].(string); code != "handle_taken" {
+		t.Fatalf("squatted register error code = %v, want handle_taken: %s", code, string(squat.stdout))
+	}
+	hint, _ := squatEnvelope["error"].(map[string]any)["hint"].(string)
+	if !strings.Contains(hint, "alice.agent.1") {
+		t.Fatalf("squatted register hint should suggest variants: %s", hint)
+	}
+
 	// send a direct message
 	sendResult := runCLI(t, workspace, baseURL, "msg", "send", "--to", "did:wba:example.com:agent:bob", "--text", "hello bob")
 	send := requireOK(t, sendResult)
@@ -168,6 +181,48 @@ func TestEndToEndAgainstMockBackend(t *testing.T) {
 	verify := requireOK(t, verifyResult)
 	if valid, _ := verify["data"].(map[string]any)["valid"].(bool); !valid {
 		t.Fatalf("signature not valid: %s", string(verifyResult.stdout))
+	}
+}
+
+func TestMultiIdentityManagement(t *testing.T) {
+	workspace := t.TempDir()
+	requireOK(t, runCLI(t, workspace, "", "init", "alice"))
+	requireOK(t, runCLI(t, workspace, "", "init", "bob"))
+
+	// Default stays with the first identity (init does not hijack it).
+	whoami := requireOK(t, runCLI(t, workspace, "", "whoami"))
+	if name, _ := whoami["data"].(map[string]any)["name"].(string); name != "alice" {
+		t.Fatalf("default identity = %q, want alice", name)
+	}
+
+	// id list shows both, with the current marker on alice.
+	list := requireOK(t, runCLI(t, workspace, "", "id", "list"))
+	rows, _ := list["data"].(map[string]any)["identities"].([]any)
+	if len(rows) != 2 {
+		t.Fatalf("id list len = %d, want 2", len(rows))
+	}
+	first, _ := rows[0].(map[string]any)
+	if first["current"] != true || first["name"] != "alice" {
+		t.Fatalf("unexpected first row: %+v", first)
+	}
+
+	// id use switches the persistent default.
+	requireOK(t, runCLI(t, workspace, "", "id", "use", "bob"))
+	whoami = requireOK(t, runCLI(t, workspace, "", "whoami"))
+	if name, _ := whoami["data"].(map[string]any)["name"].(string); name != "bob" {
+		t.Fatalf("after id use bob, default = %q", name)
+	}
+
+	// id current reflects the switch.
+	current := requireOK(t, runCLI(t, workspace, "", "id", "current"))
+	if name, _ := current["data"].(map[string]any)["name"].(string); name != "bob" {
+		t.Fatalf("id current = %q, want bob", name)
+	}
+
+	// --identity still selects the other one per-command.
+	selected := requireOK(t, runCLI(t, workspace, "", "whoami", "--identity", "alice"))
+	if name, _ := selected["data"].(map[string]any)["name"].(string); name != "alice" {
+		t.Fatalf("--identity alice gave %q", name)
 	}
 }
 

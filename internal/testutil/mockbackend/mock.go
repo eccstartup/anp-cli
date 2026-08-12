@@ -381,6 +381,10 @@ func (s *Server) registerHandle(params map[string]any) (any, error) {
 	if handle == "" || did == "" {
 		return nil, fmt.Errorf("handle and did are required")
 	}
+	// Simulate squatting: a handle bound to a different DID is taken.
+	if existing, ok := s.handles[handle]; ok && existing != did {
+		return nil, fmt.Errorf("handle %q is already registered by another identity", handle)
+	}
 	s.handles[handle] = did
 	return map[string]any{"did": did, "handle": handle, "status": "registered"}, nil
 }

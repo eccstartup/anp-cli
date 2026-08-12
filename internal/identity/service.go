@@ -29,12 +29,18 @@ func (s *Service) Init(resolved *config.Resolved, name string, enableE2EE bool) 
 	if domain == "" {
 		domain = hostnameForDID(resolved.Backend)
 	}
+	// Ensure the DID document always carries an ANPMessageService.serviceDid so
+	// E2EE works even when did_domain is configured after init.
+	serviceDID := strings.TrimSpace(resolved.ServiceDID)
+	if serviceDID == "" {
+		serviceDID = "did:wba:" + domain + ":service:anp"
+	}
 	generated, err := Generate(GenerateOptions{
 		Hostname:     domain,
 		PathSegments: []string{"agent", sanitizeName(name)},
 		EnableE2EE:   enableE2EE,
 		BackendURL:   resolved.Backend,
-		ServiceDID:   resolved.ServiceDID,
+		ServiceDID:   serviceDID,
 	})
 	if err != nil {
 		return nil, err

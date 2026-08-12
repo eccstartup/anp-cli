@@ -14,9 +14,8 @@ import (
 	"github.com/ANPWorld/anp-cli/internal/identity"
 	"github.com/ANPWorld/anp-cli/internal/transport"
 	anp "github.com/agent-network-protocol/anp/golang"
+	anpauth "github.com/agent-network-protocol/anp/golang/authentication"
 )
-
-const KeyID = "key-1"
 
 type SignatureProof struct {
 	Algorithm string `json:"algorithm"`
@@ -44,7 +43,7 @@ func Sign(active *identity.Identity, data []byte) (*SignatureProof, error) {
 	return &SignatureProof{
 		Algorithm: "Ed25519",
 		SignerDID: active.DID,
-		KeyID:     active.DID + "#" + KeyID,
+		KeyID:     active.DID + "#" + anpauth.VMKeyAuth,
 		Signature: hex.EncodeToString(signature),
 		Digest:    hex.EncodeToString(digestSHA256(data)),
 		SignedAt:  time.Now().UTC().Format(time.RFC3339),
@@ -114,7 +113,7 @@ func digestSHA256(data []byte) []byte {
 }
 
 func extractVerificationPublicKey(doc map[string]any, did string) (anp.PublicKeyMaterial, error) {
-	methodID := did + "#" + KeyID
+	methodID := did + "#" + anpauth.VMKeyAuth
 	methods, _ := doc["verificationMethod"].([]any)
 	for _, entry := range methods {
 		method, ok := entry.(map[string]any)

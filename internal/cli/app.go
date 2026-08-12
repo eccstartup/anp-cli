@@ -137,11 +137,13 @@ func (a *App) openDB(resolved *appconfig.Resolved) (*store.DB, error) {
 }
 
 func (a *App) activeIdentity() (*identity.Identity, error) {
-	service, _, err := a.identityService()
+	service, resolved, err := a.identityService()
 	if err != nil {
 		return nil, err
 	}
-	active, err := service.Active()
+	// resolved.ActiveIdentity reflects --identity > config `identity`; empty
+	// falls back to the identity index current.
+	active, err := service.Store.Load(resolved.ActiveIdentity)
 	if err != nil {
 		return nil, err
 	}

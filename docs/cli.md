@@ -31,9 +31,14 @@
 | 命令 | 说明 |
 |------|------|
 | `anp-cli id show` | 当前身份（did + did_document） |
+| `anp-cli id list` | 列出全部本地身份（含 current 标记） |
+| `anp-cli id current` | 显示默认身份 |
+| `anp-cli id use <name>` | 切换默认身份（持久化到 config.yaml） |
 | `anp-cli id resolve <did\|handle>` | 解析到 DID document |
 | `anp-cli id register --handle <h> [--phone\|--email] [--otp]` | 注册 WNS handle |
 | `anp-cli id recover --handle <h> [--phone\|--email] [--otp]` | 恢复 handle |
+
+多身份：每个 `anp-cli init <name>` 生成一个独立 DID；`--identity <name>` 按命令临时选择，`id use` 持久切换默认。
 
 ### Agent Description
 | 命令 | 说明 |

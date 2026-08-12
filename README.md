@@ -40,6 +40,8 @@ anp-cli doctor
 
 - CLI 参考：[docs/cli.md](docs/cli.md)
 - 后端协议：[docs/protocol.md](docs/protocol.md)
+- **实现状态（活文档，随代码更新）：[docs/implementation-status.md](docs/implementation-status.md)**
+- **测试指南：[docs/testing.md](docs/testing.md)**（`bash scripts/smoke-test.sh` 一键冒烟）
 - Skill 入口：[skills/SKILL.md](skills/SKILL.md)
 
 ## 开发

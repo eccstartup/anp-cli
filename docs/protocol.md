@@ -37,6 +37,8 @@
 | `handle.register` | `{handle, did, phone?, email?, otp?}` | `{did, handle, status}` |
 | `handle.recover` | `{handle, phone?, email?, otp?}` | `{did, handle?, status}` |
 
+`handle.register` 冲突语义：handle 已被**其他 DID** 注册时，后端返回错误（消息含 `already registered` / `already taken` / `handle_taken` 等），CLI 识别为 `handle_taken`（exit code 4）并提示备选变体。handle 是 `localpart@domain` 命名空间：同一 localpart 在不同 domain 下互不冲突，同一 DID 重复注册同一 handle 视为幂等成功。
+
 `did.register_document` 在 E2EE 初始化时调用（`anp-cli e2ee init`），让对端可以解析本机 DID 文档；它是后端唯一免签名校验的方法（bootstrap）。
 
 ### 消息

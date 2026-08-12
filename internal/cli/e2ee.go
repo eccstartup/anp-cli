@@ -33,7 +33,7 @@ func (a *App) runE2EEInit(cmd *Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	active, err := service.Active()
+	active, err := service.Store.Load(resolved.ActiveIdentity)
 	if err != nil {
 		return output.NewExitError("not_initialized", 3, err.Error(), "Run `anp-cli init` first.")
 	}

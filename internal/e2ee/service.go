@@ -14,6 +14,7 @@ import (
 	"github.com/ANPWorld/anp-cli/internal/identity"
 	"github.com/ANPWorld/anp-cli/internal/transport"
 	anp "github.com/agent-network-protocol/anp/golang"
+	anpauth "github.com/agent-network-protocol/anp/golang/authentication"
 	directe2ee "github.com/agent-network-protocol/anp/golang/direct_e2ee"
 )
 
@@ -67,9 +68,9 @@ func NewService(ctx context.Context, resolved *config.Resolved, active *identity
 	client, err := directe2ee.NewMessageServiceDirectE2eeClient(
 		active.DID,
 		key1,
-		active.DID+"#key-1",
+		active.DID+"#"+anpauth.VMKeyAuth,
 		key3,
-		active.DID+"#key-3",
+		active.DID+"#"+anpauth.VMKeyE2EEAgreement,
 		rpcAdapter(rpc),
 		didResolver(resolved, active, rpc),
 		sessionStore,

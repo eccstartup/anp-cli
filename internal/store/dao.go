@@ -58,7 +58,7 @@ func UpsertMessage(db *sql.DB, message Message) error {
 	_, err := db.Exec(`
 		INSERT INTO messages (message_id, sender_did, recipient_did, group_did, thread_id, type, text, secure, direction, read, sent_at, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(message_id) DO UPDATE SET text=excluded.text, read=excluded.read`,
+		ON CONFLICT(message_id) DO UPDATE SET text=excluded.text`,
 		message.MessageID, message.SenderDID, nullIfEmpty(message.RecipientDID), nullIfEmpty(message.GroupDID), nullIfEmpty(message.ThreadID),
 		message.Type, message.Text, boolInt(message.Secure), message.Direction, boolInt(message.Read), message.SentAt, time.Now().UTC().Format(time.RFC3339))
 	return err

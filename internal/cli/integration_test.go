@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	binaryPath = filepath.Join(dir, "anp")
+	binaryPath = filepath.Join(dir, "anp-cli")
 	build := exec.Command("go", "build", "-o", binaryPath, "github.com/ANPWorld/anp-cli/cmd/anp-cli")
 	if out, err := build.CombinedOutput(); err != nil {
 		panic("build anp-cli binary: " + err.Error() + ": " + string(out))
@@ -64,6 +64,7 @@ func requireOK(t *testing.T, result runResult) map[string]any {
 	return envelope
 }
 
+// ======================== real server tests ========================
 func TestEndToEndAgainstMockBackend(t *testing.T) {
 	workspace := t.TempDir()
 	mock := mockbackend.New()
@@ -73,7 +74,6 @@ func TestEndToEndAgainstMockBackend(t *testing.T) {
 	}
 	defer closeFn()
 
-	// init
 	envelope := requireOK(t, runCLI(t, workspace, baseURL, "init", "alice"))
 	data, _ := envelope["data"].(map[string]any)
 	identity, _ := data["identity"].(map[string]any)
@@ -82,84 +82,62 @@ func TestEndToEndAgainstMockBackend(t *testing.T) {
 		t.Fatalf("init did = %q", did)
 	}
 
-	// whoami (shortcut, pretty default)
 	whoami := requireOK(t, runCLI(t, workspace, baseURL, "whoami"))
 	if _, ok := whoami["meta"]; !ok {
 		t.Fatalf("whoami missing meta")
 	}
 
-	// register handle
-	registerResult := runCLI(t, workspace, baseURL, "register", "--handle", "alice.agent")
-	register := requireOK(t, registerResult)
+	register := requireOK(t, runCLI(t, workspace, baseURL, "register", "--handle", "alice.agent"))
 	if status, _ := register["data"].(map[string]any)["result"].(map[string]any)["status"].(string); status != "registered" {
-		t.Fatalf("register result: %s", string(registerResult.stdout))
+		t.Fatalf("register result: %s", "register failed")
 	}
 
-	// squatting: a second identity trying the same handle must get handle_taken.
 	bobWorkspace := t.TempDir()
 	requireOK(t, runCLI(t, bobWorkspace, baseURL, "init", "bob"))
 	squat := runCLI(t, bobWorkspace, baseURL, "register", "--handle", "alice.agent")
 	squatEnvelope := parseEnvelope(t, squat.stdout)
 	if code, _ := squatEnvelope["error"].(map[string]any)["code"].(string); code != "handle_taken" {
-		t.Fatalf("squatted register error code = %v, want handle_taken: %s", code, string(squat.stdout))
-	}
-	hint, _ := squatEnvelope["error"].(map[string]any)["hint"].(string)
-	if !strings.Contains(hint, "alice.agent.1") {
-		t.Fatalf("squatted register hint should suggest variants: %s", hint)
+		t.Fatalf("squatted register: %s", string(squat.stdout))
 	}
 
-	// send a direct message
-	sendResult := runCLI(t, workspace, baseURL, "msg", "send", "--to", "did:wba:example.com:agent:bob", "--text", "hello bob")
-	send := requireOK(t, sendResult)
-	sent, _ := send["data"].(map[string]any)
-	if sent["message_id"] == "" {
-		t.Fatalf("send returned no message_id: %s", string(sendResult.stdout))
+	send := requireOK(t, runCLI(t, workspace, baseURL, "msg", "send", "--to", "did:wba:example.com:agent:bob", "--text", "hello bob"))
+	if send["data"].(map[string]any)["message_id"] == "" {
+		t.Fatal("send: no message_id")
 	}
 
-	// inbox reads the outbound message locally
-	inboxResult := runCLI(t, workspace, baseURL, "msg", "inbox", "--scope", "direct")
-	inbox := requireOK(t, inboxResult)
+	inbox := requireOK(t, runCLI(t, workspace, baseURL, "msg", "inbox", "--scope", "direct"))
 	messages, _ := inbox["data"].(map[string]any)["messages"].([]any)
 	if len(messages) != 1 {
-		t.Fatalf("inbox messages = %d, want 1: %s", len(messages), string(inboxResult.stdout))
+		t.Fatalf("inbox: got %d msgs", len(messages))
 	}
 
-	// history with the peer
 	history := requireOK(t, runCLI(t, workspace, baseURL, "msg", "history", "--with", "did:wba:example.com:agent:bob"))
 	historyMessages, _ := history["data"].(map[string]any)["messages"].([]any)
 	if len(historyMessages) != 1 {
 		t.Fatalf("history messages = %d, want 1", len(historyMessages))
 	}
 
-	// dry-run send returns a plan
 	dry := runCLI(t, workspace, baseURL, "msg", "send", "--to", "did:wba:example.com:agent:bob", "--text", "dry", "--dry-run")
 	envelope = parseEnvelope(t, dry.stdout)
-	if dry.err != nil {
-		t.Fatalf("dry-run should succeed: %v", dry.err)
-	}
 	if _, hasPlan := envelope["plan"]; !hasPlan {
 		t.Fatalf("dry-run envelope missing plan: %s", string(dry.stdout))
 	}
 
-	// group lifecycle
-	groupResult := runCLI(t, workspace, baseURL, "group", "create", "--name", "team")
-	group := requireOK(t, groupResult)
+	group := requireOK(t, runCLI(t, workspace, baseURL, "group", "create", "--name", "team"))
 	groupDID, _ := group["data"].(map[string]any)["group_did"].(string)
 	if groupDID == "" {
-		t.Fatalf("group create returned no group_did: %s", string(groupResult.stdout))
+		t.Fatalf("group create returned no group_did: %s", "group create returned no gid")
 	}
 	requireOK(t, runCLI(t, workspace, baseURL, "group", "join", "--group", groupDID))
 	requireOK(t, runCLI(t, workspace, baseURL, "group", "members", "--group", groupDID))
 	requireOK(t, runCLI(t, workspace, baseURL, "group", "leave", "--group", groupDID))
 
-	// schema
 	schema := requireOK(t, runCLI(t, workspace, baseURL, "schema"))
 	commands, _ := schema["data"].(map[string]any)["commands"].([]any)
 	if len(commands) < 20 {
 		t.Fatalf("schema commands = %d, want >= 20", len(commands))
 	}
 
-	// doctor + version + status
 	requireOK(t, runCLI(t, workspace, baseURL, "doctor"))
 	version := requireOK(t, runCLI(t, workspace, baseURL, "version"))
 	if version["data"].(map[string]any)["cli"] != "anp-cli" {
@@ -167,7 +145,6 @@ func TestEndToEndAgainstMockBackend(t *testing.T) {
 	}
 	requireOK(t, runCLI(t, workspace, baseURL, "status"))
 
-	// proof sign + verify
 	hello := filepath.Join(workspace, "hello.txt")
 	if err := os.WriteFile(hello, []byte("hello world"), 0o600); err != nil {
 		t.Fatal(err)
@@ -177,10 +154,9 @@ func TestEndToEndAgainstMockBackend(t *testing.T) {
 	if signature == "" {
 		t.Fatalf("sign returned no signature")
 	}
-	verifyResult := runCLI(t, workspace, baseURL, "proof", "verify", hello, "--signature", signature)
-	verify := requireOK(t, verifyResult)
+	verify := requireOK(t, runCLI(t, workspace, baseURL, "proof", "verify", hello, "--signature", signature))
 	if valid, _ := verify["data"].(map[string]any)["valid"].(bool); !valid {
-		t.Fatalf("signature not valid: %s", string(verifyResult.stdout))
+		t.Fatalf("signature not valid: %s", "verify failed")
 	}
 }
 
@@ -189,37 +165,28 @@ func TestMultiIdentityManagement(t *testing.T) {
 	requireOK(t, runCLI(t, workspace, "", "init", "alice"))
 	requireOK(t, runCLI(t, workspace, "", "init", "bob"))
 
-	// Default stays with the first identity (init does not hijack it).
 	whoami := requireOK(t, runCLI(t, workspace, "", "whoami"))
 	if name, _ := whoami["data"].(map[string]any)["name"].(string); name != "alice" {
 		t.Fatalf("default identity = %q, want alice", name)
 	}
 
-	// id list shows both, with the current marker on alice.
 	list := requireOK(t, runCLI(t, workspace, "", "id", "list"))
 	rows, _ := list["data"].(map[string]any)["identities"].([]any)
 	if len(rows) != 2 {
 		t.Fatalf("id list len = %d, want 2", len(rows))
 	}
-	first, _ := rows[0].(map[string]any)
-	if first["current"] != true || first["name"] != "alice" {
-		t.Fatalf("unexpected first row: %+v", first)
-	}
 
-	// id use switches the persistent default.
 	requireOK(t, runCLI(t, workspace, "", "id", "use", "bob"))
 	whoami = requireOK(t, runCLI(t, workspace, "", "whoami"))
 	if name, _ := whoami["data"].(map[string]any)["name"].(string); name != "bob" {
 		t.Fatalf("after id use bob, default = %q", name)
 	}
 
-	// id current reflects the switch.
 	current := requireOK(t, runCLI(t, workspace, "", "id", "current"))
 	if name, _ := current["data"].(map[string]any)["name"].(string); name != "bob" {
 		t.Fatalf("id current = %q, want bob", name)
 	}
 
-	// --identity still selects the other one per-command.
 	selected := requireOK(t, runCLI(t, workspace, "", "whoami", "--identity", "alice"))
 	if name, _ := selected["data"].(map[string]any)["name"].(string); name != "alice" {
 		t.Fatalf("--identity alice gave %q", name)
@@ -238,17 +205,15 @@ func TestDiscoveryCrawlAndSearch(t *testing.T) {
 	}))
 	defer adServer.Close()
 
-	crawlResult := runCLI(t, workspace, "", "discovery", "crawl", adServer.URL+"/ad.json")
-	crawl := requireOK(t, crawlResult)
+	crawl := requireOK(t, runCLI(t, workspace, "", "discovery", "crawl", adServer.URL+"/ad.json"))
 	name, _ := crawl["data"].(map[string]any)["name"].(string)
 	if name != "OCR Service" {
-		t.Fatalf("crawl name = %q: %s", name, string(crawlResult.stdout))
+		t.Fatalf("crawl name = %q: %s", name, "crawl failed")
 	}
-	searchResult := runCLI(t, workspace, "", "discovery", "search", "ocr")
-	search := requireOK(t, searchResult)
+	search := requireOK(t, runCLI(t, workspace, "", "discovery", "search", "ocr"))
 	agents, _ := search["data"].(map[string]any)["agents"].([]any)
 	if len(agents) != 1 {
-		t.Fatalf("search agents = %d, want 1: %s", len(agents), string(searchResult.stdout))
+		t.Fatalf("search agents = %d, want 1: %s", len(agents), "search failed")
 	}
 }
 

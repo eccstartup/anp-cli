@@ -230,6 +230,10 @@ func (s *Service) Sync(ctx context.Context) ([]store.Message, error) {
 		if !ok {
 			continue
 		}
+		// Skip echoes of our own outbound messages (already stored at send time).
+		if local.SenderDID == s.Active.DID {
+			continue
+		}
 		if err := store.UpsertMessage(s.DB, local); err != nil {
 			continue
 		}

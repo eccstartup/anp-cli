@@ -61,6 +61,6 @@
 
 ## 测试
 
-- **自动冒烟**：`bash scripts/smoke-test.sh`（62 项，含 daemon；`--skip-daemon` 跳过系统服务）。启动 `cmd/mock`（内存 mock 后端）逐项断言。手动逐步版见 [testing.md](testing.md)。
+- **自动冒烟**：`bash scripts/smoke-test.sh`（62 项，含 daemon；`--skip-daemon` 跳过系统服务）。启动 `cmd/mock`（内存 mock 后端）逐项断言。
 - Go 测试：`go test ./...`（身份/DID、store、transport 签名、message 含 E2EE 双 agent 往返、CLI 端到端含抢注、多身份）。`go vet ./...` 静态检查。
-- 测试工具：`cmd/mock` 是独立 mock 后端二进制（`go run ./cmd/mock` 打印 URL）。
+- **真服务器**：独立项目 `/Users/eccstartup/code/claude/anp-server-go/`（`github.com/ANPWorld/anp-server-go`），SQLite 持久化 + 签名校验 + 首次引导兼容。`go run ./cmd/anp-server --db ./data.db` 启动，见其 README。

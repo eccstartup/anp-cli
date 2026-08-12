@@ -1,7 +1,20 @@
-bin/
-dist/
+# 构建产物
+/bin/
+/dist/
+
+# Go
 *.test
 *.out
+*.prof
+coverage.out
+
+# 编辑器 / OS
 .idea/
 .vscode/
 .DS_Store
+
+# Claude Code：机器相关的本地配置不提交；
+# 共享的 .claude/settings.json、.claude/agents 等可以正常提交
+.claude/settings.local.json
+.claude/history.jsonl
+.claude/todos.json

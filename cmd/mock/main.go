@@ -1,7 +1,5 @@
-// Command mock runs an in-memory ANP backend for local development and manual
-// testing. It prints the base URL and stays running until interrupted.
-//
-// Usage: go run ./cmd/mock            # prints e.g. http://127.0.0.1:54321
+// Command mock starts an in-memory ANP backend for testing. It prints the
+// base URL on stdout and stays running until interrupted.
 package main
 
 import (
@@ -15,13 +13,17 @@ import (
 
 func main() {
 	server := mockbackend.New()
-	baseURL, _, err := server.Start()
+	baseURL, closeFn, err := server.Start()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Fprintln(os.Stderr, "ANP mock backend listening on", baseURL)
+	defer closeFn()
+
+	fmt.Fprintln(os.Stderr, "[mock] ANP backend listening on", baseURL)
 	fmt.Println(baseURL)
 	fmt.Fprintln(os.Stderr, "Press Ctrl-C to stop")
-	signal.Notify(make(chan os.Signal, 1), os.Interrupt, syscall.SIGTERM)
-	select {}
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	<-sig
 }

@@ -161,7 +161,8 @@ func (a *App) signedClient(resolved *appconfig.Resolved, active *identity.Identi
 	if err != nil {
 		return nil, err
 	}
-	return transport.NewClient(resolved.Backend, signer), nil
+	client := transport.NewClient(resolved.Backend, signer)
+	return client, nil
 }
 
 func (a *App) identityMeta() *output.IdentityMeta {

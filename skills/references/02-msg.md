@@ -6,7 +6,7 @@
 
 ```bash
 anp-cli msg send --to did:wba:example.com:agent:bob:e1_xxx --text "hello"
-anp-cli msg send --group did:wba:mock:group:g1 --text "hi team"
+anp-cli msg send --group did:wba:example:group:g1 --text "hi team"
 anp-cli dm did:wba:example.com:agent:bob:e1_xxx "hello"     # shortcut
 ```
 

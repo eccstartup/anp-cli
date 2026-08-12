@@ -6,9 +6,9 @@
 
 ```bash
 anp-cli group create --name "Team Alpha" --members '["did:wba:...:bob:e1_x"]'
-anp-cli group join --group did:wba:mock:group:g1
-anp-cli group members --group did:wba:mock:group:g1 --format table
-anp-cli group leave --group did:wba:mock:group:g1
+anp-cli group join --group did:wba:example:group:g1
+anp-cli group members --group did:wba:example:group:g1 --format table
+anp-cli group leave --group did:wba:example:group:g1
 ```
 
 - `create` 返回 `group_did`（此后 `--group` 用它）。
@@ -19,7 +19,7 @@ anp-cli group leave --group did:wba:mock:group:g1
 ## 给群发消息
 
 ```bash
-anp-cli msg send --group did:wba:mock:group:g1 --text "hi team"
+anp-cli msg send --group did:wba:example:group:g1 --text "hi team"
 ```
 
 （见 [02-msg.md](02-msg.md)）

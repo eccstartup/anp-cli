@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -21,6 +22,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	binaryPath = filepath.Join(dir, "anp-cli")
+	if runtime.GOOS == "windows" {
+		binaryPath += ".exe"
+	}
 	build := exec.Command("go", "build", "-o", binaryPath, "github.com/eccstartup/anp-cli/cmd/anp-cli")
 	if out, err := build.CombinedOutput(); err != nil {
 		panic("build anp-cli binary: " + err.Error() + ": " + string(out))

@@ -20,7 +20,7 @@ Agent Network Protocol (ANP) CLI —— 管理 DID 身份、消息、群组、�
 
 | 场景 | 命令 | 参考 |
 |------|------|------|
-| 首次使用/装好 | `anp-cli init`，或 `ANP_BACKEND=... anp-cli init` | [00-install.md](references/00-install.md) |
+| 首次使用/装好 | `anp-cli init [name]`（无参则随机生成如 `agent-a3b9f2c1`），或 `ANP_BACKEND=... anp-cli init` | [00-install.md](references/00-install.md) |
 | 我是谁 / 解析别人 | `anp-cli whoami` / `anp-cli id resolve <did\|handle>` | [01-id.md](references/01-id.md) |
 | 多身份管理 | `anp-cli id list` / `id use <name>` / `--identity <name>` | [01-id.md](references/01-id.md) |
 | 注册 handle | `anp-cli register --handle <h> [--email\|--phone]` | [01-id.md](references/01-id.md) |

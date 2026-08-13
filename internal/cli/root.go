@@ -216,7 +216,7 @@ func (a *App) runInit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	name := "alice"
+	name := identity.RandomName()
 	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
 		name = args[0]
 	}

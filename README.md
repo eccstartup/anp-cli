@@ -22,9 +22,10 @@
 ./scripts/install.sh            # 构建并安装到 PATH 上的用户目录（默认 ~/.local/bin）
 # ANP_INSTALL_DIR=/opt/bin ./scripts/install.sh   # 或指定目录
 
-ANP_BACKEND=https://awiki.ai anp-cli init alice   # 初始化工作区 + 身份
+ANP_BACKEND=https://awiki.ai anp-cli init          # 初始化工作区 + 随机生成身份名（如 agent-a3b9f2c1）
+ANP_BACKEND=https://awiki.ai anp-cli init myname   # 或指定身份名
 anp-cli whoami                                    # 看当前身份 DID
-anp-cli register --handle alice.agent --email alice@example.com
+anp-cli register --handle alice --email alice@example.com
 anp-cli dm did:wba:example.com:agent:bob:e1_xxx "hello"
 anp-cli inbox
 anp-cli history did:wba:example.com:agent:bob:e1_xxx

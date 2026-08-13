@@ -85,14 +85,14 @@ export ANP_BACKEND=http://127.0.0.1:54321   # 换成你终端 A 看到的实际�
 - [ ] `anp-cli config show` → ✅ did_domain=example.com（已有身份的 DID 不变）
 
 ### 第 4 组 注册 handle + 抢注
-- [ ] `anp-cli register --handle me.agent --email a@example.com` → ✅ status: registered
+- [ ] `anp-cli register --handle me --email a@example.com` → ✅ status: registered
 - [ ] 抢注（用另一个身份抢同一个）：
   ```bash
   ANP_WORKSPACE=/tmp/anp-hw-bob anp-cli init bob >/dev/null
-  ANP_WORKSPACE=/tmp/anp-hw-bob anp-cli register --handle me.agent
+  ANP_WORKSPACE=/tmp/anp-hw-bob anp-cli register --handle me
   ```
   ✅ 报错 `code: handle_taken` + 提示换变体
-- [ ] `ANP_WORKSPACE=/tmp/anp-hw-bob anp-cli register --handle me.agent.1` → ✅ 成功
+- [ ] `ANP_WORKSPACE=/tmp/anp-hw-bob anp-cli register --handle me.1` → ✅ 成功
 
 ### 第 5 组 消息 + 历史
 - [ ] `BOB=$(ANP_WORKSPACE=/tmp/anp-hw-bob anp-cli whoami --jq '.data.did' | tr -d '"')`

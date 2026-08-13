@@ -3,12 +3,16 @@
 package identity
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // Index is the on-disk identity index (identities/index.json).
@@ -101,11 +105,22 @@ func (s *Store) Save(generated *GeneratedIdentity, name string, handle string) (
 		return nil, err
 	}
 	name = sanitizeName(name)
+
+	lock, err := s.lockIndex()
+	if err != nil {
+		return nil, err
+	}
+	defer unlockIndex(lock)
+
 	index, err := s.readIndex()
 	if err != nil {
 		return nil, err
 	}
 	dir := s.dir(name)
+	// Refuse to overwrite an existing identity.
+	if fileExists(filepath.Join(dir, "did.json")) {
+		return nil, fmt.Errorf("identity %q already exists", name)
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -147,17 +162,7 @@ func (s *Store) Save(generated *GeneratedIdentity, name string, handle string) (
 		Keys:        keys,
 	}
 	item := IndexItem{Name: name, DID: identity.DID, Handle: handle, CreatedAt: identity.CreatedAt}
-	replaced := false
-	for i, existing := range index.Items {
-		if existing.Name == name {
-			index.Items[i] = item
-			replaced = true
-			break
-		}
-	}
-	if !replaced {
-		index.Items = append(index.Items, item)
-	}
+	index.Items = append(index.Items, item)
 	if index.Current == "" {
 		index.Current = name
 	}
@@ -184,6 +189,12 @@ func (s *Store) CurrentName() (string, error) {
 }
 
 func (s *Store) SetCurrent(name string) error {
+	lock, err := s.lockIndex()
+	if err != nil {
+		return err
+	}
+	defer unlockIndex(lock)
+
 	index, err := s.readIndex()
 	if err != nil {
 		return err
@@ -252,6 +263,12 @@ func (s *Store) Load(name string) (*Identity, error) {
 }
 
 func (s *Store) SetHandle(name string, handle string) error {
+	lock, err := s.lockIndex()
+	if err != nil {
+		return err
+	}
+	defer unlockIndex(lock)
+
 	index, err := s.readIndex()
 	if err != nil {
 		return err
@@ -265,10 +282,43 @@ func (s *Store) SetHandle(name string, handle string) error {
 	return fmt.Errorf("unknown identity %q", name)
 }
 
+// --- index.json file lock (prevents read-modify-write races) ---
+
+func (s *Store) lockIndex() (*os.File, error) {
+	lockPath := s.indexPath() + ".lock"
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("acquire index lock: %w", err)
+	}
+	return f, nil
+}
+
+func unlockIndex(f *os.File) {
+	if f == nil {
+		return
+	}
+	_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+	_ = f.Close()
+}
+
+// RandomName generates a random agent name (e.g. "agent-a3b9f2c1").
+func RandomName() string {
+	var buf [4]byte
+	_, _ = rand.Read(buf[:])
+	return "agent-" + hex.EncodeToString(buf[:])
+}
+
 func sanitizeName(name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		name = "alice"
+		name = RandomName()
 	}
 	name = strings.ReplaceAll(name, "/", "_")
 	name = strings.ReplaceAll(name, "\\", "_")

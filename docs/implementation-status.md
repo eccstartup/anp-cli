@@ -12,7 +12,7 @@
 
 | 命令 | 状态 | 依赖后端 | 说明 |
 |------|:---:|:---:|------|
-| `init [name]` | ✅ | 否 | 建工作区 + 生成 e1 `did:wba` 身份（域名见下方"命名空间"） |
+| `init [name]` | ✅ | 否 | 建工作区 + 生成 e1 `did:wba` 身份（无参时随机生成如 `agent-a3b9f2c1`，域名见下方"命名空间"） |
 | `id show` / `whoami` | ✅ | 否 | 当前身份（did + did_document） |
 | `id list` / `id current` / `id use <name>` | ✅ | 否 | 多身份管理：列出 / 看默认 / 持久切换默认（写 config.yaml） |
 | `id resolve <did\|handle>` | ✅ | 部分 | DID 直接抓 did.json；handle 走后端 |
@@ -44,7 +44,7 @@
 ## 关键设计
 
 - **身份 vs handle**：DID = 密钥指纹（`e1_<hash>`），注册/换配置**不改 DID**；handle 只是 `localpart@domain` 的别名，由后端绑定。
-- **多身份**：每个 `init <name>` 一个独立 DID；选择优先级 `--identity`（本次）> config `identity`（`id use` 持久写）> index current。`init` 不抢占已有默认身份。
+- **多身份**：每个 `init <name>` 一个独立 DID；选择优先级 `--identity`（本次）> config `identity`（`id use` 持久写）> index current。`init` 不抢占已有默认身份；无参 `init` 每次随机生成新名字，不会冲突。
 - **命名空间**：handle 按域名隔离。`alice@awiki.ai` 与 `alice@example.com` 是**两个不同 handle**。被抢注 → 换变体（CLI 会建议）或用自己 `did_domain` 当命名空间。
 - **签名**：所有后端调用用当前身份 HTTP Message Signatures（`@method @target-uri @authority content-digest`，keyid `did#key-1`）。
 - **E2EE**：direct 可用；group 等 SDK P6 v2 发布。

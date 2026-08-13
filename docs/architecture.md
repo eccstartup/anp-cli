@@ -142,14 +142,14 @@ flowchart LR
     WS["~/.anp/ (ANP_WORKSPACE)"]
     CFG["config.yaml<br/>backend / did_domain / identity"]
     IDS["identities/"]
-    ALICE["alice/<br/>did.json + key-1/2/3 PEM + ad.json"]
+    NAMED["<name>/<br/>did.json + key-1/2/3 PEM + ad.json"]
     E2["e2ee/<br/>prekey bundle / OPK / 会话"]
     DBC["anp.db<br/>消息 / 联系人 / 群 / 发现索引"]
     DIS["discovered/<br/>爬取的 agent 索引"]
 
     WS --> CFG
     WS --> IDS
-    IDS --> ALICE
+    IDS --> NAMED
     WS --> E2
     WS --> DBC
     WS --> DIS

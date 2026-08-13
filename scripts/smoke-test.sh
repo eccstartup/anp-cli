@@ -135,11 +135,11 @@ run "config show 看到 did_domain" -- "$BIN" config show
 
 # ---------------------------------------------------------------- 4. 身份注册 + 抢注
 say "== 4. handle 注册 / 抢注 =="
-run "alice 注册 handle" -- "$BIN" register --handle alice.agent --email a@example.com
+run "alice 注册 handle" -- "$BIN" register --handle alice --email a@example.com
 ANP_ENV=(ANP_WORKSPACE="$WORK_B" ANP_BACKEND="$MOCK_URL")
 run "bob init" -- "$BIN" init bob
-run_err "bob 抢注同一 handle → handle_taken" handle_taken -- "$BIN" register --handle alice.agent
-run "bob 换变体注册成功" -- "$BIN" register --handle alice.agent.1
+run_err "bob 抢注同一 handle → handle_taken" handle_taken -- "$BIN" register --handle alice
+run "bob 换变体注册成功" -- "$BIN" register --handle alice.1
 
 # ---------------------------------------------------------------- 5. describe
 say "== 5. Agent Description =="

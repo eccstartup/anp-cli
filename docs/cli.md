@@ -18,7 +18,7 @@
 ### 工作区
 | 命令 | 说明 |
 |------|------|
-| `anp-cli init [name]` | 初始化工作区 + 生成 e1 DID 身份 |
+| `anp-cli init [name]` | 初始化工作区 + 生成 DID 身份（无参时随机生成如 `agent-a3b9f2c1`） |
 | `anp-cli status` | 工作区状态 |
 | `anp-cli doctor` | 环境与存储诊断 |
 | `anp-cli config show` | 查看已解析配置 |
@@ -108,8 +108,8 @@ E2EE 流程：收方先 `anp-cli e2ee init`；发方 `msg send --secure on` 自�
 ## 输出示例
 
 ```json
-{ "ok": true, "command": "anp-cli id show", "data": { "did": "did:wba:...:e1_...", "name": "alice" },
-  "meta": { "identity": "alice", "dry_run": false, "format": "json", "version": "0.1.0" } }
+{ "ok": true, "command": "anp-cli id show", "data": { "did": "did:wba:...:e1_...", "name": "agent-a3b9f2c1" },
+  "meta": { "identity": "agent-a3b9f2c1", "dry_run": false, "format": "json", "version": "0.1.0" } }
 ```
 
 ```json

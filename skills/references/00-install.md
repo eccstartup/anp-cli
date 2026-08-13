@@ -11,7 +11,8 @@ cd anp-cli && make build   # 产出 ./bin/anp-cli
 ## 初始化工作区
 
 ```bash
-anp-cli init                # 创建 ~/.anp/ + 生成默认身份 alice
+anp-cli init                # 创建 ~/.anp/ + 随机生成身份名（如 agent-a3b9f2c1）
+anp-cli init alice          # 创建 ~/.anp/ + 指定身份名 alice
 ANP_BACKEND=https://awiki.ai anp-cli init bob   # 绑定后端并命名身份 bob
 ```
 

@@ -63,4 +63,4 @@
 
 - **自动冒烟**：`bash scripts/smoke-test.sh`（60 项，含 daemon；`--skip-daemon` 跳过系统服务）。自动启动内存 mock 后端（`scripts/mockrun/`）逐项断言。
 - Go 测试：`go test ./...`（身份/DID、store、transport 签名、message 含 E2EE 双 agent 往返、CLI 端到端含抢注、多身份）。`go vet ./...` 静态检查。
-- **真服务器**：独立项目 `/Users/eccstartup/code/claude/anp-server-go/`（`github.com/eccstartup/anp-server-go`），SQLite 持久化 + 签名校验 + 首次引导兼容。`go run ./cmd/anp-server --db ./data.db` 启动，见其 README。
+- **真服务器**：独立项目 `github.com/eccstartup/anp-server-go`，SQLite 持久化 + 签名校验 + 首次引导兼容。`go run ./cmd/anp-server --db ./data.db` 启动，见其 README。

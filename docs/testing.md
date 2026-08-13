@@ -7,7 +7,7 @@
 ## 准备（一次就好）
 
 ```bash
-cd /Users/eccstartup/code/claude/anp-cli
+cd anp-cli
 go build -o bin/anp-cli ./cmd/anp-cli     # 构建 CLI
 ```
 

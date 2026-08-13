@@ -8,7 +8,7 @@
 
 | | scripts/mockrun | anp-server |
 |---|---|---|
-| **位置** | CLI 项目内 `scripts/mockrun/` | 独立项目 `/Users/eccstartup/code/claude/anp-server-go/` |
+| **位置** | CLI 项目内 `scripts/mockrun/` | 独立仓库 `github.com/eccstartup/anp-server-go` |
 | **存储** | 内存，进程重启即清空 | SQLite 持久化，重启不丢 |
 | **鉴权** | 不校验签名 | 首次引导期接受所有请求；有 DID 后严格签名校验 |
 | **用途** | 冒烟测试、本地快速验证 CLI 逻辑 | 真实集成测试、验证签名/持久化 |
@@ -25,7 +25,7 @@
 ## 四、真服务器怎么启动
 
 ```bash
-cd /Users/eccstartup/code/claude/anp-server-go
+cd anp-server-go
 bash scripts/start.sh                 # 后台启动
 bash scripts/start.sh --foreground    # 前台启动
 bash scripts/stop.sh                  # 停止

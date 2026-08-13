@@ -40,6 +40,13 @@ func Open(path string) (*sql.DB, error) {
 		db.Close()
 		return nil, err
 	}
+	// The local database holds plaintext message bodies. Restrict the file to
+	// the owner (0600) even if the workspace directory permissions are relaxed
+	// later, instead of relying solely on the 0700 directory barrier.
+	if err := os.Chmod(path, 0o600); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return db, nil
 }
 

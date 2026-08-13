@@ -75,7 +75,11 @@ func daemonService(resolved *appconfig.Resolved) (*service.Config, error) {
 		Arguments:        []string{"runtime", "listen-service"},
 		EnvVars:          env,
 		WorkingDirectory: resolved.Paths.Root,
-		Option:           service.KeyValue{"UserService": true},
+		Option: service.KeyValue{
+			"UserService":  true,
+			"LogOutput":    true,
+			"LogDirectory": resolved.Paths.Root,
+		},
 	}, nil
 }
 

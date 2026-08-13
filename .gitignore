@@ -12,6 +12,8 @@ coverage.out
 .idea/
 .vscode/
 .DS_Store
+.workbuddy/
+delivery/
 
 # Claude Code：机器相关的本地配置不提交；
 # 共享的 .claude/settings.json、.claude/agents 等可以正常提交

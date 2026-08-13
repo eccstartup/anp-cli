@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -74,14 +75,14 @@ type rpcRequest struct {
 	JSONRPC string         `json:"jsonrpc"`
 	Method  string         `json:"method"`
 	Params  map[string]any `json:"params"`
-	ID      int            `json:"id"`
+	ID      string         `json:"id"`
 }
 
 type rpcResponse struct {
 	JSONRPC string          `json:"jsonrpc"`
 	Result  json.RawMessage `json:"result,omitempty"`
 	Error   *RPCError       `json:"error,omitempty"`
-	ID      int             `json:"id"`
+	ID      string          `json:"id"`
 }
 
 // Client is a signed JSON-RPC client for the ANP protocol.
@@ -98,11 +99,35 @@ func NewClient(baseURL string, signer *Signer) *Client {
 	return &Client{BaseURL: strings.TrimRight(baseURL, "/"), Signer: signer, HTTP: &http.Client{Timeout: requestTimeout}}
 }
 
+// validateBaseURL rejects plaintext HTTP backends (except loopback for local
+// development) so credentials and message bodies are not sent in the clear.
+func (c *Client) validateBaseURL() error {
+	if c.BaseURL == "" {
+		return nil
+	}
+	u, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return fmt.Errorf("invalid backend URL: %w", err)
+	}
+	if u.Scheme == "http" {
+		switch u.Hostname() {
+		case "localhost", "127.0.0.1", "::1":
+			return nil
+		default:
+			return fmt.Errorf("refusing plaintext HTTP backend %q; use https:// (loopback is allowed for local development)", c.BaseURL)
+		}
+	}
+	return nil
+}
+
 // Call invokes a JSON-RPC method and decodes the result into out. When signer
 // is nil the request is unsigned (anonymous resolution).
 func (c *Client) Call(ctx context.Context, method string, params map[string]any, out any) error {
+	if err := c.validateBaseURL(); err != nil {
+		return err
+	}
 	endpoint := c.BaseURL + "/rpc"
-	payload := rpcRequest{JSONRPC: "2.0", Method: method, Params: params, ID: 1}
+	payload := rpcRequest{JSONRPC: "2.0", Method: method, Params: params, ID: "1"}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("encode request: %w", err)
@@ -161,60 +186,63 @@ func (c *Client) CallRaw(ctx context.Context, method string, params map[string]a
 	return result, nil
 }
 
-// ResolveDIDDocument resolves a did:wba or did:web document over HTTPS.
+// ResolveDIDDocument resolves a did:wba or did:web document over HTTPS,
+// delegating to the SDK so the returned document id and key-binding are
+// validated against the requested DID. The SDK walks the spec-correct
+// .well-known/did.json path for did:wba and rejects a mismatched id or binding.
 func ResolveDIDDocument(ctx context.Context, did string) (map[string]any, error) {
-	resourceURL, err := documentURL(did)
+	host, err := didHost(did)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resourceURL, nil)
-	if err != nil {
-		return nil, err
+	if isBlockedHost(host) {
+		return nil, fmt.Errorf("refusing to resolve DID against blocked host %q", host)
 	}
-	req.Header.Set("Accept", "application/json")
-	resp, err := (&http.Client{Timeout: requestTimeout}).Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("resolve %s: %w", did, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("resolve %s: HTTP %d", did, resp.StatusCode)
-	}
-	raw, err := readLimitedBody(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read did document for %s: %w", did, err)
-	}
-	var doc map[string]any
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("decode did document for %s: %w", did, err)
-	}
-	return doc, nil
+	return anpauth.ResolveDidDocument(ctx, did, false)
 }
 
-func documentURL(did string) (string, error) {
-	if !strings.HasPrefix(did, "did:wba:") && !strings.HasPrefix(did, "did:web:") {
-		return "", fmt.Errorf("unsupported DID method %q (only did:wba and did:web)", did)
-	}
+// didHost extracts the host component from a did:wba or did:web identifier so
+// it can be screened before any outbound fetch.
+func didHost(did string) (string, error) {
 	parts := strings.SplitN(did, ":", 4)
-	if len(parts) < 4 {
+	if len(parts) < 3 {
 		return "", fmt.Errorf("invalid did %q", did)
 	}
-	domain, err := url.PathUnescape(parts[2])
+	host, err := url.PathUnescape(parts[2])
 	if err != nil {
 		return "", fmt.Errorf("invalid did domain: %w", err)
 	}
-	pathPart := parts[3]
-	if pathPart != "" {
-		pathPart = "/" + strings.ReplaceAll(pathPart, ":", "/")
+	return host, nil
+}
+
+// isBlockedHost guards against SSRF: DID resolution must not fetch from IP
+// literals, loopback, private, link-local, or cloud metadata addresses.
+func isBlockedHost(hostport string) bool {
+	host := strings.ToLower(strings.TrimSpace(hostport))
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
 	}
-	if strings.HasPrefix(did, "did:wba:") {
-		return "https://" + domain + pathPart + "/did.json", nil
+	host = strings.TrimSuffix(host, ".")
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()
 	}
-	return "https://" + domain + pathPart + "/did.json", nil
+	// Cloud metadata endpoints commonly use a link-local IP (already covered
+	// above), but guard the well-known hostname too.
+	return host == "localhost" || host == "metadata.google.internal"
 }
 
 // FetchJSON fetches a JSON document from an arbitrary URL (discovery crawl).
 func FetchJSON(ctx context.Context, resourceURL string) (map[string]any, error) {
+	parsed, err := url.Parse(resourceURL)
+	if err != nil {
+		return nil, err
+	}
+	// Guard against the classic SSRF target (cloud metadata link-local). Loopback
+	// and private hosts stay allowed: crawl is operator-triggered and testing
+	// against a local server on 127.0.0.1 is a supported workflow.
+	if ip := net.ParseIP(parsed.Hostname()); ip != nil && ip.IsLinkLocalUnicast() {
+		return nil, fmt.Errorf("refusing to fetch from link-local host %q", parsed.Hostname())
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resourceURL, nil)
 	if err != nil {
 		return nil, err

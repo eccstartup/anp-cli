@@ -27,11 +27,11 @@ warn()  { printf '\033[1;33m[install]\033[0m %s\n' "$*"; }
 die()   { printf '\033[1;31m[install]\033[0m %s\n' "$*" >&2; exit 1; }
 
 # --- 0. 依赖检查 -----------------------------------------------------------
-command -v go >/dev/null 2>&1 || die "未找到 go。请先安装 Go 1.22+：https://go.dev/dl/"
+command -v go >/dev/null 2>&1 || die "未找到 go。请先安装 Go 1.26+：https://go.dev/dl/"
 GO_VERSION="$(go version | sed -E 's/.*go([0-9]+\.[0-9]+).*/\1/')"
-# 最低版本 = sort -V 的最小值；若最小值仍是 go 自身版本且不是 1.22，说明 go < 1.22
-if [ "$(printf '%s\n' "$GO_VERSION" '1.22' | sort -V | head -1)" = "$GO_VERSION" ] && [ "$GO_VERSION" != "1.22" ]; then
-  die "Go 版本过低（$GO_VERSION），需要 Go 1.22+。"
+# 最低版本 = sort -V 的最小值；若最小值仍是 go 自身版本且不是 1.26，说明 go < 1.26
+if [ "$(printf '%s\n' "$GO_VERSION" '1.26' | sort -V | head -1)" = "$GO_VERSION" ] && [ "$GO_VERSION" != "1.26" ]; then
+  die "Go 版本过低（$GO_VERSION），需要 Go 1.26+。"
 fi
 
 # --- 1. 版本探测 ------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 `anp` 是一个**协议级**命令行客户端：管理 DID 身份、消息、群组、agent 发现与签名，消费 [Agent Network Protocol](https://github.com/agent-network-protocol/anp)（ANP），不绑定任何具体网站。后端地址由 `ANP_BACKEND` 或 `~/.anp/config.yaml` 指定（例如 `ANP_BACKEND=https://awiki.ai` 即接入 awiki 网络）。
 
-单二进制、纯 Go（无 CGO）、基于 [ANP Go SDK v0.9.2](https://github.com/agent-network-protocol/anp/tree/main/golang)。命令组织、输出 envelope 与 shortcut 设计参照 [awiki-cli](https://github.com/AgentConnect/awiki-cli)。
+单二进制、纯 Go（无 CGO）、基于 [ANP Go SDK v0.9.3](https://github.com/agent-network-protocol/anp/tree/main/golang)。命令组织、输出 envelope 与 shortcut 设计参照 [awiki-cli](https://github.com/AgentConnect/awiki-cli)。
 
 ## 特性
 

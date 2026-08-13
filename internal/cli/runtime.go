@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eccstartup/anp-cli/internal/message"
+	"github.com/eccstartup/anp-cli/internal/output"
 )
 
 func (a *App) runRuntimeListen(cmd *Command, args []string) error {
@@ -69,11 +70,26 @@ func runPollLoopCtx(ctx context.Context, service *message.Service, mode string, 
 func syncOnce(service *message.Service) {
 	start := time.Now()
 	pulled, err := service.Sync(context.Background())
+	// Never emit message bodies to stdout: in service mode this leaks E2EE
+	// plaintext into the system log. Emit metadata only.
+	entries := make([]map[string]any, 0, len(pulled))
+	for _, m := range pulled {
+		entries = append(entries, map[string]any{
+			"message_id":    m.MessageID,
+			"sender_did":    m.SenderDID,
+			"recipient_did": m.RecipientDID,
+			"group_did":     m.GroupDID,
+			"type":          m.Type,
+			"secure":        m.Secure,
+			"direction":     m.Direction,
+			"sent_at":       m.SentAt,
+		})
+	}
 	entry := map[string]any{
 		"ok":       err == nil,
 		"command":  "anp-cli runtime listen",
 		"pulled":   len(pulled),
-		"messages": pulled,
+		"messages": entries,
 		"took_ms":  time.Since(start).Milliseconds(),
 	}
 	if err != nil {
@@ -87,6 +103,9 @@ func (a *App) runRuntimeHeartbeat(cmd *Command, args []string) error {
 	format := a.outputFormat(false)
 	everyRaw, _ := cmd.Flags().GetString("every")
 	install, _ := cmd.Flags().GetBool("install")
+	if install {
+		return output.NewExitError("invalid_argument", 2, "--install is not implemented yet (heartbeat runs once only)", "Run `anp-cli runtime heartbeat` without --install.")
+	}
 	service, closeDB, err := a.msgService()
 	if err != nil {
 		return err

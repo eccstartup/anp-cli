@@ -320,8 +320,24 @@ func sanitizeName(name string) string {
 	if name == "" {
 		name = RandomName()
 	}
-	name = strings.ReplaceAll(name, "/", "_")
-	name = strings.ReplaceAll(name, "\\", "_")
+	// Keep only safe characters and collapse path separators so the name can
+	// never escape the identity directory via path traversal.
+	var b strings.Builder
+	for _, r := range name {
+		switch {
+		case r == '/' || r == '\\':
+			b.WriteRune('_')
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '_', r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	name = b.String()
+	// Reject names that resolve to path traversal ("..") or nothing.
+	if name == "" || name == "." || name == ".." {
+		name = RandomName()
+	}
 	return name
 }
 

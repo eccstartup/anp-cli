@@ -71,6 +71,15 @@ func parentName(name string) string {
 	return trimmed[:index]
 }
 
+func containsFold(haystack []string, needle string) bool {
+	for _, item := range haystack {
+		if strings.EqualFold(item, needle) {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *App) commandFromSpec(spec cmdmeta.CommandSpec) *cobra.Command {
 	command := &cobra.Command{
 		Use:     spec.Use,
@@ -79,6 +88,7 @@ func (a *App) commandFromSpec(spec cmdmeta.CommandSpec) *cobra.Command {
 		Aliases: spec.Aliases,
 		Hidden:  spec.Hidden,
 	}
+	choiceFlags := make([]cmdmeta.FlagSpec, 0)
 	for _, flag := range spec.Flags {
 		switch flag.Type {
 		case "string":
@@ -99,6 +109,22 @@ func (a *App) commandFromSpec(spec cmdmeta.CommandSpec) *cobra.Command {
 		}
 		if flag.Required {
 			_ = command.MarkFlagRequired(flag.Name)
+		}
+		if len(flag.Choices) > 0 {
+			choiceFlags = append(choiceFlags, flag)
+		}
+	}
+	if len(choiceFlags) > 0 {
+		command.PreRunE = func(cmd *cobra.Command, args []string) error {
+			for _, flag := range choiceFlags {
+				value, _ := cmd.Flags().GetString(flag.Name)
+				if !containsFold(flag.Choices, value) {
+					return output.NewExitError("invalid_argument", 2,
+						fmt.Sprintf("invalid value %q for --%s; choose from: %s", value, flag.Name, strings.Join(flag.Choices, ", ")),
+						"")
+				}
+			}
+			return nil
 		}
 	}
 	if handler := a.handlerFor(spec); handler != nil {

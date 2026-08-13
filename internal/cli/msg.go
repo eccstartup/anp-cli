@@ -17,7 +17,6 @@ func (a *App) msgService() (*message.Service, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	service := message.NewService(nil, nil, nil, nil)
 	db, err := a.openDB(resolved)
 	if err != nil {
 		return nil, nil, err
@@ -32,11 +31,7 @@ func (a *App) msgService() (*message.Service, func(), error) {
 		db.Close()
 		return nil, nil, err
 	}
-	service.Config = resolved
-	service.DB = db
-	service.Active = active
-	service.Client = client
-	return service, func() { db.Close() }, nil
+	return message.NewService(resolved, db, active, client), func() { db.Close() }, nil
 }
 
 func (a *App) runMsgSend(cmd *Command, args []string) error {
@@ -161,11 +156,15 @@ func (a *App) readHistoryCore(cmd *Command, format output.Format, peer string, l
 		plan := map[string]any{"with": peer, "limit": limit, "actions": []string{"sync inbox from backend", "read local thread"}}
 		return a.renderPlan(cmd.CommandPath(), format, plan, "History read plan")
 	}
-	_, _ = service.Sync(context.Background())
+	_, syncErr := service.Sync(context.Background())
 	messages, err := service.History(peer, limit)
 	if err != nil {
 		return err
 	}
+	warnings := []string{}
+	if syncErr != nil {
+		warnings = append(warnings, "inbox sync failed: "+syncErr.Error())
+	}
 	data := map[string]any{"with": peer, "messages": messages}
-	return a.renderSuccess(cmd.CommandPath(), format, data, fmt.Sprintf("%d message(s)", len(messages)), nil)
+	return a.renderSuccess(cmd.CommandPath(), format, data, fmt.Sprintf("%d message(s)", len(messages)), warnings)
 }

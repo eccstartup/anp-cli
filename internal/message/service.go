@@ -34,9 +34,9 @@ type Service struct {
 	DB       *sql.DB
 	Active   *identity.Identity
 	Client   *transport.Client
-	e2eeSvc  *e2ee.Service
-	e2eeOnce sync.Once
-	e2eeErr  error
+	e2eeSvc *e2ee.Service
+	e2eeMu  sync.Mutex
+	e2eeErr error
 }
 
 func NewService(resolved *config.Resolved, db *sql.DB, active *identity.Identity, client *transport.Client) *Service {
@@ -44,9 +44,15 @@ func NewService(resolved *config.Resolved, db *sql.DB, active *identity.Identity
 }
 
 func (s *Service) ensureE2EE() (*e2ee.Service, error) {
-	s.e2eeOnce.Do(func() {
-		s.e2eeSvc, s.e2eeErr = e2ee.NewService(context.Background(), s.Config, s.Active, s.Client)
-	})
+	s.e2eeMu.Lock()
+	defer s.e2eeMu.Unlock()
+	if s.e2eeSvc != nil {
+		return s.e2eeSvc, nil
+	}
+	// Retry a previous failure instead of caching it forever: a long-lived
+	// `runtime listen` must recover once the underlying dependency is fixed.
+	s.e2eeErr = nil
+	s.e2eeSvc, s.e2eeErr = e2ee.NewService(context.Background(), s.Config, s.Active, s.Client)
 	return s.e2eeSvc, s.e2eeErr
 }
 

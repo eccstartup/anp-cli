@@ -159,7 +159,9 @@ func applyJQ(value any, expr string) (any, error) {
 		results = append(results, item)
 	}
 	if len(results) == 0 {
-		return nil, nil
+		// An empty jq result should render as an empty array, not JSON null, so
+		// consumers can distinguish "no matches" from "a field that is null".
+		return []any{}, nil
 	}
 	if len(results) == 1 {
 		return results[0], nil

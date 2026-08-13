@@ -41,12 +41,14 @@ func (s *Service) Create(ctx context.Context, name string, members string) (map[
 		return nil, err
 	}
 	if groupDID, _ := result["group_did"].(string); groupDID != "" {
-		_ = store.UpsertGroup(s.DB, store.Group{
+		if err := store.UpsertGroup(s.DB, store.Group{
 			GroupDID: groupDID,
 			Name:     name,
 			Role:     "owner",
 			JoinedAt: time.Now().UTC().Format(time.RFC3339),
-		})
+		}); err != nil {
+			return nil, fmt.Errorf("group created remotely but local persist failed: %w", err)
+		}
 	}
 	return result, nil
 }
@@ -59,11 +61,13 @@ func (s *Service) Join(ctx context.Context, groupDID string) (map[string]any, er
 	if err != nil {
 		return nil, err
 	}
-	_ = store.UpsertGroup(s.DB, store.Group{
+	if err := store.UpsertGroup(s.DB, store.Group{
 		GroupDID: groupDID,
 		Role:     "member",
 		JoinedAt: time.Now().UTC().Format(time.RFC3339),
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("joined remotely but local persist failed: %w", err)
+	}
 	return result, nil
 }
 
@@ -75,7 +79,9 @@ func (s *Service) Leave(ctx context.Context, groupDID string) (map[string]any, e
 	if err != nil {
 		return nil, err
 	}
-	_ = store.DeleteGroup(s.DB, groupDID)
+	if err := store.DeleteGroup(s.DB, groupDID); err != nil {
+		return nil, fmt.Errorf("left remotely but local cleanup failed: %w", err)
+	}
 	return result, nil
 }
 
@@ -88,7 +94,10 @@ func (s *Service) Members(ctx context.Context, groupDID string) ([]map[string]an
 		return nil, err
 	}
 	members := []map[string]any{}
-	rows, _ := result["members"].([]any)
+	rows, ok := result["members"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("backend returned invalid members field")
+	}
 	for _, row := range rows {
 		if member, ok := row.(map[string]any); ok {
 			members = append(members, member)

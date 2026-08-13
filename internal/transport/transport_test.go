@@ -55,7 +55,7 @@ func TestClientCallSigned(t *testing.T) {
 			_, _ = w.Write([]byte(`{"error":"bad signature"}`))
 			return
 		}
-		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","result":{"ok":true},"id":1}`))
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","result":{"ok":true},"id":"1"}`))
 	}))
 	defer server.Close()
 
@@ -71,7 +71,7 @@ func TestClientCallSigned(t *testing.T) {
 
 func TestClientCallUnsigned(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","result":{"hello":"world"},"id":1}`))
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","result":{"hello":"world"},"id":"1"}`))
 	}))
 	defer server.Close()
 	client := NewClient(server.URL, nil)
@@ -84,25 +84,40 @@ func TestClientCallUnsigned(t *testing.T) {
 	}
 }
 
-func TestDocumentURL(t *testing.T) {
+func TestDidHost(t *testing.T) {
 	cases := []struct {
 		did  string
 		want string
 	}{
-		{"did:wba:example.com:user:alice:e1_x", "https://example.com/user/alice/e1_x/did.json"},
-		{"did:web:example.com:agent:bot", "https://example.com/agent/bot/did.json"},
+		{"did:wba:example.com:user:alice:e1_x", "example.com"},
+		{"did:web:example.com:agent:bot", "example.com"},
 	}
 	for _, tc := range cases {
-		got, err := documentURL(tc.did)
+		got, err := didHost(tc.did)
 		if err != nil {
-			t.Fatalf("documentURL(%s): %v", tc.did, err)
+			t.Fatalf("didHost(%s): %v", tc.did, err)
 		}
 		if got != tc.want {
-			t.Fatalf("documentURL(%s) = %q, want %q", tc.did, got, tc.want)
+			t.Fatalf("didHost(%s) = %q, want %q", tc.did, got, tc.want)
 		}
 	}
-	if _, err := documentURL("did:key:z6Mk"); err == nil {
-		t.Fatalf("expected error for unsupported did method")
+	if _, err := didHost("did:wba"); err == nil {
+		t.Fatalf("expected error for truncated did")
+	}
+}
+
+func TestIsBlockedHost(t *testing.T) {
+	blocked := []string{"127.0.0.1", "::1", "localhost", "10.0.0.5", "169.254.169.254", "metadata.google.internal", "0.0.0.0"}
+	for _, host := range blocked {
+		if !isBlockedHost(host) {
+			t.Fatalf("isBlockedHost(%q) = false, want true", host)
+		}
+	}
+	allowed := []string{"example.com", "awiki.ai"}
+	for _, host := range allowed {
+		if isBlockedHost(host) {
+			t.Fatalf("isBlockedHost(%q) = true, want false", host)
+		}
 	}
 }
 

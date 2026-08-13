@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/eccstartup/anp-cli/internal/message"
@@ -49,7 +48,7 @@ func (a *App) runRuntimeListen(cmd *Command, args []string) error {
 
 func runPollLoop(cmd *Command, service *message.Service, mode string, interval time.Duration) error {
 	fmt.Fprintf(os.Stderr, "[anp-cli] receiver %s polling every %s (Ctrl-C to stop)\n", mode, interval)
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), shutdownSignals()...)
 	defer stop()
 	return runPollLoopCtx(ctx, service, mode, interval)
 }

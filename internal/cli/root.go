@@ -52,7 +52,7 @@ func newRootCommand(app *App) *cobra.Command {
 	})
 	for _, spec := range specs {
 		command := app.commandFromSpec(spec)
-		parent := commandsByName[parentName(spec.Name)]
+		parent := commandsByName[cmdmeta.ParentName(spec.Name)]
 		if parent == nil {
 			panic(fmt.Sprintf("missing parent command for %s", spec.Name))
 		}
@@ -60,15 +60,6 @@ func newRootCommand(app *App) *cobra.Command {
 		commandsByName[strings.ToLower(spec.Name)] = command
 	}
 	return rootCmd
-}
-
-func parentName(name string) string {
-	trimmed := strings.ToLower(strings.TrimSpace(name))
-	index := strings.LastIndex(trimmed, ".")
-	if index < 0 {
-		return ""
-	}
-	return trimmed[:index]
 }
 
 func containsFold(haystack []string, needle string) bool {

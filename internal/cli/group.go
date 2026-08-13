@@ -10,25 +10,11 @@ import (
 )
 
 func (a *App) groupService() (*group.Service, func(), error) {
-	resolved, err := a.resolveConfig()
+	_, db, active, client, closeDB, err := a.wireDeps()
 	if err != nil {
 		return nil, nil, err
 	}
-	db, err := a.openDB(resolved)
-	if err != nil {
-		return nil, nil, err
-	}
-	active, err := a.activeIdentity()
-	if err != nil {
-		db.Close()
-		return nil, nil, output.NewExitError("not_initialized", 3, err.Error(), "Run `anp-cli init` first.")
-	}
-	client, err := a.signedClient(resolved, active)
-	if err != nil {
-		db.Close()
-		return nil, nil, err
-	}
-	return group.NewService(db, active, client), func() { db.Close() }, nil
+	return group.NewService(db, active, client), closeDB, nil
 }
 
 func (a *App) runGroupCreate(cmd *Command, args []string) error {
@@ -101,6 +87,9 @@ func (a *App) runGroupMembers(cmd *Command, args []string) error {
 	groupDID, _ := cmd.Flags().GetString("group")
 	if groupDID == "" {
 		return output.NewExitError("invalid_argument", 2, "--group is required.", "Run `anp-cli group members --group <gid>`.")
+	}
+	if a.globals.DryRun {
+		return a.renderPlan(cmd.CommandPath(), format, map[string]any{"group": groupDID, "actions": []string{"query members via backend"}}, "Group members plan")
 	}
 	service, closeDB, err := a.groupService()
 	if err != nil {

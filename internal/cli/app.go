@@ -165,6 +165,31 @@ func (a *App) signedClient(resolved *appconfig.Resolved, active *identity.Identi
 	return client, nil
 }
 
+// wireDeps assembles the shared dependencies for backend-talking services:
+// resolved config, an open database, the active identity, and a signed client.
+// On error the database is closed; on success the caller owns the cleanup func.
+func (a *App) wireDeps() (*appconfig.Resolved, *store.DB, *identity.Identity, *transport.Client, func(), error) {
+	resolved, err := a.resolveConfig()
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	db, err := a.openDB(resolved)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	active, err := a.activeIdentity()
+	if err != nil {
+		db.Close()
+		return nil, nil, nil, nil, nil, output.NewExitError("not_initialized", 3, err.Error(), "Run `anp-cli init` first.")
+	}
+	client, err := a.signedClient(resolved, active)
+	if err != nil {
+		db.Close()
+		return nil, nil, nil, nil, nil, err
+	}
+	return resolved, db, active, client, func() { db.Close() }, nil
+}
+
 func (a *App) identityMeta() *output.IdentityMeta {
 	if a.globals.Identity != "" {
 		return &output.IdentityMeta{Name: a.globals.Identity}

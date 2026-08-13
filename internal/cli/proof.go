@@ -82,6 +82,9 @@ func (a *App) runProofVerify(cmd *Command, args []string) error {
 		}
 	}
 	active, _ := a.activeIdentity()
+	if a.globals.DryRun {
+		return a.renderPlan(cmd.CommandPath(), format, map[string]any{"file": path, "did": did, "actions": []string{"verify signature against the signer's key"}}, "Verify plan")
+	}
 	result, err := proof.Verify(context.Background(), active, did, data, signatureHex)
 	if err != nil {
 		return err

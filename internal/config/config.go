@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/sys/unix"
+	"github.com/eccstartup/anp-cli/internal/fslock"
 	"gopkg.in/yaml.v3"
 )
 
@@ -170,22 +170,22 @@ func Resolve(overrides Overrides) (*Resolved, error) {
 // WriteFile atomically writes the config file under an exclusive file lock so
 // concurrent `config set` / `id use` processes cannot clobber each other.
 func WriteFile(path string, file File) error {
-	lock, err := lockFile(path + ".lock")
+	lock, err := fslock.Acquire(path + ".lock")
 	if err != nil {
-		return err
+		return fmt.Errorf("acquire config lock: %w", err)
 	}
-	defer unlockFile(lock)
+	defer fslock.Release(lock)
 	return writeFile(path, file)
 }
 
 // UpdateFile applies fn to the current config file under lock, then writes it
 // back atomically. It serializes the read-modify-write cycle end to end.
 func UpdateFile(path string, fn func(*File) error) error {
-	lock, err := lockFile(path + ".lock")
+	lock, err := fslock.Acquire(path + ".lock")
 	if err != nil {
-		return err
+		return fmt.Errorf("acquire config lock: %w", err)
 	}
-	defer unlockFile(lock)
+	defer fslock.Release(lock)
 
 	file := File{}
 	if raw, err := os.ReadFile(path); err == nil {
@@ -214,27 +214,4 @@ func writeFile(path string, file File) error {
 		return err
 	}
 	return os.Rename(tmp, path)
-}
-
-func lockFile(lockPath string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
-		f.Close()
-		return nil, fmt.Errorf("acquire config lock: %w", err)
-	}
-	return f, nil
-}
-
-func unlockFile(f *os.File) {
-	if f == nil {
-		return
-	}
-	_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
-	_ = f.Close()
 }

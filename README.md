@@ -58,7 +58,7 @@ make lint       # gofmt + go vet
 
 ## 发布
 
-[GoReleaser](.goreleaser.yaml) 配置 macOS / Linux / Windows 二进制与 npm wrapper。见 [.goreleaser.yaml](.goreleaser.yaml)。
+[GoReleaser](.goreleaser.yaml) 配置 macOS / Linux / Windows 二进制。见 [.goreleaser.yaml](.goreleaser.yaml)。
 
 ## License
 

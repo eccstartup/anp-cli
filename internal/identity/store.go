@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sys/unix"
+	"github.com/eccstartup/anp-cli/internal/fslock"
 )
 
 // Index is the on-disk identity index (identities/index.json).
@@ -285,27 +285,15 @@ func (s *Store) SetHandle(name string, handle string) error {
 // --- index.json file lock (prevents read-modify-write races) ---
 
 func (s *Store) lockIndex() (*os.File, error) {
-	lockPath := s.indexPath() + ".lock"
-	if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	lock, err := fslock.Acquire(s.indexPath() + ".lock")
 	if err != nil {
-		return nil, err
-	}
-	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
-		f.Close()
 		return nil, fmt.Errorf("acquire index lock: %w", err)
 	}
-	return f, nil
+	return lock, nil
 }
 
 func unlockIndex(f *os.File) {
-	if f == nil {
-		return
-	}
-	_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
-	_ = f.Close()
+	fslock.Release(f)
 }
 
 // RandomName generates a random agent name (e.g. "agent-a3b9f2c1").

@@ -2,10 +2,6 @@ version: 2
 
 project_name: anp-cli
 
-before:
-  hooks:
-    - go mod tidy
-
 builds:
   - id: anp
     main: ./cmd/anp-cli
@@ -40,6 +36,7 @@ nfpms:
   - id: anp
     package_name: anp
     vendor: anp-cli
+    maintainer: anp-cli contributors
     homepage: https://github.com/eccstartup/anp-cli
     license: MIT
     formats:

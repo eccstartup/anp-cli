@@ -49,6 +49,8 @@
 | `msg.inbox` | `{scope: all\|direct\|group, unread?, limit?}` | `{messages: [message]}` |
 | `msg.history` | `{with, limit?}` | `{messages: [message]}` |
 
+> **设计说明**：`msg.send` 是 anp-cli 与后端之间的**私有 relay 扩展**（明文消息专用），不是 ANP 标准的 `direct.send` 信封。端到端加密消息（`--secure on`）不走 `msg.send`，而是经 SDK `direct_e2ee` 的 `direct.send`（`{meta, body}` 信封，并附带 ANP P1 附录 A 的应用层 origin proof）。接入第三方后端时，明文 relay 需按后端实际能力对齐；E2EE 路径遵循 ANP `direct.send` 规范。
+
 `message` 对象：
 ```json
 { "message_id": "msg_1", "sender_did": "...", "recipient_did": "...", "group_did": "",

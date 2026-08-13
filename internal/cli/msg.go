@@ -13,25 +13,11 @@ import (
 // msgService assembles the message service from resolved config + active
 // identity + signed client, opening the local database.
 func (a *App) msgService() (*message.Service, func(), error) {
-	resolved, err := a.resolveConfig()
+	resolved, db, active, client, closeDB, err := a.wireDeps()
 	if err != nil {
 		return nil, nil, err
 	}
-	db, err := a.openDB(resolved)
-	if err != nil {
-		return nil, nil, err
-	}
-	active, err := a.activeIdentity()
-	if err != nil {
-		db.Close()
-		return nil, nil, output.NewExitError("not_initialized", 3, err.Error(), "Run `anp-cli init` first.")
-	}
-	client, err := a.signedClient(resolved, active)
-	if err != nil {
-		db.Close()
-		return nil, nil, err
-	}
-	return message.NewService(resolved, db, active, client), func() { db.Close() }, nil
+	return message.NewService(resolved, db, active, client), closeDB, nil
 }
 
 func (a *App) runMsgSend(cmd *Command, args []string) error {

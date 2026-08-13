@@ -16,6 +16,7 @@ import (
 	anp "github.com/agent-network-protocol/anp/golang"
 	anpauth "github.com/agent-network-protocol/anp/golang/authentication"
 	directe2ee "github.com/agent-network-protocol/anp/golang/direct_e2ee"
+	anpproof "github.com/agent-network-protocol/anp/golang/proof"
 )
 
 // Re-exported wire content types so callers do not need the SDK import.
@@ -71,7 +72,7 @@ func NewService(ctx context.Context, resolved *config.Resolved, active *identity
 		active.DID+"#"+anpauth.VMKeyAuth,
 		key3,
 		active.DID+"#"+anpauth.VMKeyE2EEAgreement,
-		rpcAdapter(rpc),
+		rpcAdapter(rpc, key1, active.DID+"#"+anpauth.VMKeyAuth),
 		didResolver(resolved, active, rpc),
 		sessionStore,
 		signedStore,
@@ -149,8 +150,29 @@ func PlaintextText(result map[string]any) (string, bool) {
 	return text, text != ""
 }
 
-func rpcAdapter(c *transport.Client) directe2ee.RPCClient {
+func rpcAdapter(c *transport.Client, privateKey anp.PrivateKeyMaterial, keyID string) directe2ee.RPCClient {
 	return func(method string, params map[string]any) (map[string]any, error) {
+		// Attach an application-layer origin proof to message-sending methods
+		// (ANP P1 Appendix A) so receivers can verify the sender DID end-to-end,
+		// independent of the transport-layer HTTP signature.
+		if method == "direct.send" {
+			meta, _ := params["meta"].(map[string]any)
+			body, _ := params["body"].(map[string]any)
+			if meta != nil && body != nil {
+				originProof, err := anpproof.GenerateRFC9421OriginProof(method, meta, body, privateKey, keyID, anpproof.RFC9421OriginProofGenerationOptions{})
+				if err != nil {
+					return nil, fmt.Errorf("generate origin proof: %w", err)
+				}
+				params["auth"] = map[string]any{
+					"scheme": "anp-rfc9421-origin-proof-v1",
+					"origin_proof": map[string]any{
+						"contentDigest":  originProof.ContentDigest,
+						"signatureInput": originProof.SignatureInput,
+						"signature":      originProof.Signature,
+					},
+				}
+			}
+		}
 		return c.CallRaw(context.Background(), method, params)
 	}
 }

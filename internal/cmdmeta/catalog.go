@@ -80,7 +80,7 @@ func (c *Catalog) ChildrenOf(parent string) []CommandSpec {
 	needle := normalizeName(parent)
 	children := make([]CommandSpec, 0)
 	for _, spec := range c.specs {
-		if parentName(spec.Name) == needle {
+		if ParentName(spec.Name) == needle {
 			children = append(children, spec)
 		}
 	}
@@ -96,7 +96,9 @@ func normalizeName(raw string) string {
 	return strings.ToLower(trimmed)
 }
 
-func parentName(name string) string {
+// ParentName returns the normalized parent command name of a full command
+// name (e.g. "msg.send" -> "msg", "status" -> "").
+func ParentName(name string) string {
 	normalized := normalizeName(name)
 	last := strings.LastIndex(normalized, ".")
 	if last < 0 {

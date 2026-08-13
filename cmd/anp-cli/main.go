@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/ANPWorld/anp-cli/internal/cli"
+	"github.com/eccstartup/anp-cli/internal/cli"
 )
 
 func main() {

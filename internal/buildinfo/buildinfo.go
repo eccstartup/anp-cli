@@ -3,7 +3,7 @@ package buildinfo
 import "runtime"
 
 // Version is the semantic version of the CLI. It may be overridden at build
-// time via -ldflags "-X github.com/ANPWorld/anp-cli/internal/buildinfo.Version=...".
+// time via -ldflags "-X github.com/eccstartup/anp-cli/internal/buildinfo.Version=...".
 var Version = "0.1.0"
 
 // Commit is the git commit hash, injected at build time.

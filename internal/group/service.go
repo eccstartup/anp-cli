@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ANPWorld/anp-cli/internal/identity"
-	"github.com/ANPWorld/anp-cli/internal/store"
-	"github.com/ANPWorld/anp-cli/internal/transport"
+	"github.com/eccstartup/anp-cli/internal/identity"
+	"github.com/eccstartup/anp-cli/internal/store"
+	"github.com/eccstartup/anp-cli/internal/transport"
 )
 
 type Service struct {

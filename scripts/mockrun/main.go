@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ANPWorld/anp-cli/internal/testutil/mockbackend"
+	"github.com/eccstartup/anp-cli/internal/testutil/mockbackend"
 )
 
 func main() {

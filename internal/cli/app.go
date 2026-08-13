@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ANPWorld/anp-cli/internal/buildinfo"
-	"github.com/ANPWorld/anp-cli/internal/cmdmeta"
-	appconfig "github.com/ANPWorld/anp-cli/internal/config"
-	"github.com/ANPWorld/anp-cli/internal/identity"
-	"github.com/ANPWorld/anp-cli/internal/output"
-	"github.com/ANPWorld/anp-cli/internal/store"
-	"github.com/ANPWorld/anp-cli/internal/transport"
+	"github.com/eccstartup/anp-cli/internal/buildinfo"
+	"github.com/eccstartup/anp-cli/internal/cmdmeta"
+	appconfig "github.com/eccstartup/anp-cli/internal/config"
+	"github.com/eccstartup/anp-cli/internal/identity"
+	"github.com/eccstartup/anp-cli/internal/output"
+	"github.com/eccstartup/anp-cli/internal/store"
+	"github.com/eccstartup/anp-cli/internal/transport"
 )
 
 type GlobalOptions struct {

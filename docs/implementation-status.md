@@ -3,7 +3,7 @@
 > 这份文档随时与代码同步：**每次实现/改动功能后都应更新这里**，供人查阅"现在能做什么"。
 > 命令细节以 `anp-cli schema` 为准；本表是功能总览。
 
-- 模块：`github.com/ANPWorld/anp-cli`　命令：`anp-cli`　SDK：ANP Go v0.9.2
+- 模块：`github.com/eccstartup/anp-cli`　命令：`anp-cli`　SDK：ANP Go v0.9.2
 - 工作区：`~/.anp/`（`ANP_WORKSPACE` 覆盖）　后端：`ANP_BACKEND` 或 config `backend`
 - 输出：JSON envelope + `--format` / `--json` / `--jq` / `--dry-run`　（[docs/cli.md](cli.md)）
 - 协议：`anp-jsonrpc-v1`（[docs/protocol.md](protocol.md)）
@@ -63,4 +63,4 @@
 
 - **自动冒烟**：`bash scripts/smoke-test.sh`（60 项，含 daemon；`--skip-daemon` 跳过系统服务）。自动启动内存 mock 后端（`scripts/mockrun/`）逐项断言。
 - Go 测试：`go test ./...`（身份/DID、store、transport 签名、message 含 E2EE 双 agent 往返、CLI 端到端含抢注、多身份）。`go vet ./...` 静态检查。
-- **真服务器**：独立项目 `/Users/eccstartup/code/claude/anp-server-go/`（`github.com/ANPWorld/anp-server-go`），SQLite 持久化 + 签名校验 + 首次引导兼容。`go run ./cmd/anp-server --db ./data.db` 启动，见其 README。
+- **真服务器**：独立项目 `/Users/eccstartup/code/claude/anp-server-go/`（`github.com/eccstartup/anp-server-go`），SQLite 持久化 + 签名校验 + 首次引导兼容。`go run ./cmd/anp-server --db ./data.db` 启动，见其 README。

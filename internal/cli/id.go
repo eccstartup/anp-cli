@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ANPWorld/anp-cli/internal/config"
-	"github.com/ANPWorld/anp-cli/internal/identity"
-	"github.com/ANPWorld/anp-cli/internal/output"
+	"github.com/eccstartup/anp-cli/internal/config"
+	"github.com/eccstartup/anp-cli/internal/identity"
+	"github.com/eccstartup/anp-cli/internal/output"
 )
 
 func (a *App) runIDShow(cmd *Command, args []string) error {

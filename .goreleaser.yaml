@@ -21,9 +21,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/ANPWorld/anp-cli/internal/buildinfo.Version={{ .Version }}
-      - -X github.com/ANPWorld/anp-cli/internal/buildinfo.Commit={{ .Commit }}
-      - -X github.com/ANPWorld/anp-cli/internal/buildinfo.Date={{ .Date }}
+      - -X github.com/eccstartup/anp-cli/internal/buildinfo.Version={{ .Version }}
+      - -X github.com/eccstartup/anp-cli/internal/buildinfo.Commit={{ .Commit }}
+      - -X github.com/eccstartup/anp-cli/internal/buildinfo.Date={{ .Date }}
 
 archives:
   - id: anp
@@ -40,7 +40,7 @@ nfpms:
   - id: anp
     package_name: anp
     vendor: anp-cli
-    homepage: https://github.com/ANPWorld/anp-cli
+    homepage: https://github.com/eccstartup/anp-cli
     license: MIT
     formats:
       - deb
@@ -48,7 +48,7 @@ nfpms:
 
 brews:
   - name: anp
-    homepage: https://github.com/ANPWorld/anp-cli
+    homepage: https://github.com/eccstartup/anp-cli
     description: Agent Network Protocol CLI
 
 changelog:

@@ -8,9 +8,9 @@ import (
 
 	"github.com/kardianos/service"
 
-	appconfig "github.com/ANPWorld/anp-cli/internal/config"
-	"github.com/ANPWorld/anp-cli/internal/message"
-	"github.com/ANPWorld/anp-cli/internal/output"
+	appconfig "github.com/eccstartup/anp-cli/internal/config"
+	"github.com/eccstartup/anp-cli/internal/message"
+	"github.com/eccstartup/anp-cli/internal/output"
 )
 
 const (

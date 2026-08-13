@@ -3,7 +3,7 @@
 ## 安装
 
 ```bash
-go install github.com/ANPWorld/anp-cli/cmd/anp-cli@latest
+go install github.com/eccstartup/anp-cli/cmd/anp-cli@latest
 # 或本地构建
 cd anp-cli && make build   # 产出 ./bin/anp-cli
 ```

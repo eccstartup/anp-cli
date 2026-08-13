@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ANPWorld/anp-cli/internal/buildinfo"
-	"github.com/ANPWorld/anp-cli/internal/cmdmeta"
-	appconfig "github.com/ANPWorld/anp-cli/internal/config"
-	"github.com/ANPWorld/anp-cli/internal/doctor"
-	"github.com/ANPWorld/anp-cli/internal/identity"
-	"github.com/ANPWorld/anp-cli/internal/output"
+	"github.com/eccstartup/anp-cli/internal/buildinfo"
+	"github.com/eccstartup/anp-cli/internal/cmdmeta"
+	appconfig "github.com/eccstartup/anp-cli/internal/config"
+	"github.com/eccstartup/anp-cli/internal/doctor"
+	"github.com/eccstartup/anp-cli/internal/identity"
+	"github.com/eccstartup/anp-cli/internal/output"
 	"github.com/spf13/cobra"
 )
 

@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ANPWorld/anp-cli/internal/config"
-	"github.com/ANPWorld/anp-cli/internal/transport"
+	"github.com/eccstartup/anp-cli/internal/config"
+	"github.com/eccstartup/anp-cli/internal/transport"
 )
 
 type Service struct {

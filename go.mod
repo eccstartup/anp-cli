@@ -1,4 +1,4 @@
-module github.com/ANPWorld/anp-cli
+module github.com/eccstartup/anp-cli
 
 go 1.26.5
 

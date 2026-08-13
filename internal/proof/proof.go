@@ -12,8 +12,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/ANPWorld/anp-cli/internal/identity"
-	"github.com/ANPWorld/anp-cli/internal/transport"
+	"github.com/eccstartup/anp-cli/internal/identity"
+	"github.com/eccstartup/anp-cli/internal/transport"
 	anp "github.com/agent-network-protocol/anp/golang"
 	anpauth "github.com/agent-network-protocol/anp/golang/authentication"
 )

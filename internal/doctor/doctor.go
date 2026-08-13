@@ -7,9 +7,9 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/ANPWorld/anp-cli/internal/buildinfo"
-	"github.com/ANPWorld/anp-cli/internal/config"
-	"github.com/ANPWorld/anp-cli/internal/store"
+	"github.com/eccstartup/anp-cli/internal/buildinfo"
+	"github.com/eccstartup/anp-cli/internal/config"
+	"github.com/eccstartup/anp-cli/internal/store"
 )
 
 type Check struct {

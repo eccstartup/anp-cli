@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ANPWorld/anp-cli/internal/output"
-	"github.com/ANPWorld/anp-cli/internal/proof"
+	"github.com/eccstartup/anp-cli/internal/output"
+	"github.com/eccstartup/anp-cli/internal/proof"
 )
 
 func (a *App) runProofSign(cmd *Command, args []string) error {

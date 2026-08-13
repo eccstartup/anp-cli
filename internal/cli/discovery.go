@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ANPWorld/anp-cli/internal/discovery"
-	"github.com/ANPWorld/anp-cli/internal/output"
-	"github.com/ANPWorld/anp-cli/internal/store"
+	"github.com/eccstartup/anp-cli/internal/discovery"
+	"github.com/eccstartup/anp-cli/internal/output"
+	"github.com/eccstartup/anp-cli/internal/store"
 )
 
 func (a *App) openDiscoveryDB() (*store.DB, func(), error) {

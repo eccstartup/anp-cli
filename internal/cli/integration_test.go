@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ANPWorld/anp-cli/internal/testutil/mockbackend"
+	"github.com/eccstartup/anp-cli/internal/testutil/mockbackend"
 )
 
 var binaryPath string
@@ -21,7 +21,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	binaryPath = filepath.Join(dir, "anp-cli")
-	build := exec.Command("go", "build", "-o", binaryPath, "github.com/ANPWorld/anp-cli/cmd/anp-cli")
+	build := exec.Command("go", "build", "-o", binaryPath, "github.com/eccstartup/anp-cli/cmd/anp-cli")
 	if out, err := build.CombinedOutput(); err != nil {
 		panic("build anp-cli binary: " + err.Error() + ": " + string(out))
 	}

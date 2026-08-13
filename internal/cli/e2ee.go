@@ -3,8 +3,8 @@ package cli
 import (
 	"context"
 
-	"github.com/ANPWorld/anp-cli/internal/e2ee"
-	"github.com/ANPWorld/anp-cli/internal/output"
+	"github.com/eccstartup/anp-cli/internal/e2ee"
+	"github.com/eccstartup/anp-cli/internal/output"
 )
 
 func (a *App) e2eeService() (*e2ee.Service, func(), error) {

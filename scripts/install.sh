@@ -18,7 +18,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-MODULE_PATH="github.com/ANPWorld/anp-cli"
+MODULE_PATH="github.com/eccstartup/anp-cli"
 BINARY_NAME="anp-cli"
 DEFAULT_VERSION="0.1.0"
 

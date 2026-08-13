@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ANPWorld/anp-cli/internal/config"
-	"github.com/ANPWorld/anp-cli/internal/identity"
-	"github.com/ANPWorld/anp-cli/internal/transport"
+	"github.com/eccstartup/anp-cli/internal/config"
+	"github.com/eccstartup/anp-cli/internal/identity"
+	"github.com/eccstartup/anp-cli/internal/transport"
 	anp "github.com/agent-network-protocol/anp/golang"
 	anpauth "github.com/agent-network-protocol/anp/golang/authentication"
 	directe2ee "github.com/agent-network-protocol/anp/golang/direct_e2ee"

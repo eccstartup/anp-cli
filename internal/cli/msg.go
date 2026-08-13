@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ANPWorld/anp-cli/internal/message"
-	"github.com/ANPWorld/anp-cli/internal/output"
-	"github.com/ANPWorld/anp-cli/internal/store"
+	"github.com/eccstartup/anp-cli/internal/message"
+	"github.com/eccstartup/anp-cli/internal/output"
+	"github.com/eccstartup/anp-cli/internal/store"
 )
 
 // msgService assembles the message service from resolved config + active

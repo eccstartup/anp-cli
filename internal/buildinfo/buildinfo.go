@@ -1,6 +1,9 @@
 package buildinfo
 
-import "runtime"
+import (
+	"runtime"
+	"runtime/debug"
+)
 
 // Version is the semantic version of the CLI. It may be overridden at build
 // time via -ldflags "-X github.com/eccstartup/anp-cli/internal/buildinfo.Version=...".
@@ -39,9 +42,30 @@ func Current() BuildInfo {
 		Arch:     runtime.GOARCH,
 		CGO:      cgoEnabled(),
 		SDK:      "github.com/agent-network-protocol/anp/golang",
-		SDKVer:   "v0.9.2",
+		SDKVer:   sdkVersion(),
 		Protocol: "anp-jsonrpc-v1",
 	}
+}
+
+// sdkVersion returns the compiled-in version of the ANP Go SDK from the
+// runtime build info. This keeps `version` accurate across SDK upgrades
+// instead of relying on a hardcoded constant that drifts out of sync.
+func sdkVersion() string {
+	const fallback = "v0.9.3"
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return fallback
+	}
+	for _, dep := range bi.Deps {
+		if dep.Path != "github.com/agent-network-protocol/anp/golang" {
+			continue
+		}
+		if dep.Replace != nil && dep.Replace.Version != "" {
+			return dep.Replace.Version
+		}
+		return dep.Version
+	}
+	return fallback
 }
 
 func cgoEnabled() bool {

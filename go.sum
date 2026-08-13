@@ -1,5 +1,5 @@
-github.com/agent-network-protocol/anp/golang v0.9.2 h1:ViT+iO+S69nIVEJAS7f24RFIN7nmaj2qVcONxmKM9Go=
-github.com/agent-network-protocol/anp/golang v0.9.2/go.mod h1:r3tSNMTTU4WW1fW68C1NJyn2Q0w59ajOQ4OERrFGTEU=
+github.com/agent-network-protocol/anp/golang v0.9.3 h1:gzX+gUgz4Ky6Nrd6acaxLzVEPQRnwc8WC5XHl9izNwI=
+github.com/agent-network-protocol/anp/golang v0.9.3/go.mod h1:r3tSNMTTU4WW1fW68C1NJyn2Q0w59ajOQ4OERrFGTEU=
 github.com/btcsuite/btcd/btcec/v2 v2.3.6 h1:IzlsEr9olcSRKB/n7c4351F3xHKxS2lma+1UFGCYd4E=
 github.com/btcsuite/btcd/btcec/v2 v2.3.6/go.mod h1:m22FrOAiuxl/tht9wIqAoGHcbnCCaPWyauO8y2LGGtQ=
 github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 h1:q0rUy8C/TYNBQS1+CGKw68tLOFYSNEs0TFnxxnS9+4U=

@@ -67,7 +67,7 @@ export ANP_BACKEND=http://127.0.0.1:54321   # 换成你终端 A 看到的实际�
 ## 完整清单（13 组）
 
 ### 第 1 组 基础命令（不需要服务器）
-- [ ] `anp-cli version` → ✅ 见 `cli: anp-cli, sdk: v0.9.2`
+- [ ] `anp-cli version` → ✅ 见 `cli: anp-cli, sdk: v0.9.3`
 - [ ] `anp-cli --help` → ✅ 列出所有命令
 - [ ] `unset ANP_BACKEND; anp-cli doctor` → ✅ 诊断报告（有警告也正常）
 - [ ] `anp-cli schema msg.send` → ✅ 单个命令的参数/输出契约

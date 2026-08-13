@@ -33,7 +33,7 @@ flowchart TD
         Doc["doctor<br/>环境诊断"]
     end
 
-    subgraph L4["ANP Go SDK v0.9.2（纯加密，不含传输）"]
+    subgraph L4["ANP Go SDK v0.9.3（纯加密，不含传输）"]
         SdkAuth["authentication<br/>DID-WBA 文档 / HTTP 签名 / DID 解析"]
         SdkD2["direct_e2ee<br/>X3DH + 双棘轮（参考客户端）"]
         SdkG2["group_e2ee<br/>P6 v2（官方门禁封锁）"]
@@ -159,4 +159,4 @@ flowchart LR
 
 - **分层原则**：命令层只负责参数 + 渲染，业务层不 `fmt.Println`，协议/存储独立，加密全部委托 ANP SDK。
 - **协议**：`POST {backend}/rpc`，JSON-RPC 2.0 + HTTP Message Signatures，见 [protocol.md](protocol.md)。
-- **群组 E2EE 灰显**：`group_e2ee` 在 SDK v0.9.2 中被官方门禁封锁，CLI 已将群组 `--secure on` 接到该门禁。
+- **群组 E2EE 灰显**：`group_e2ee` 在 SDK v0.9.3 中被官方门禁封锁，CLI 已将群组 `--secure on` 接到该门禁。

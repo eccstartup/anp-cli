@@ -3,7 +3,7 @@
 > 这份文档随时与代码同步：**每次实现/改动功能后都应更新这里**，供人查阅"现在能做什么"。
 > 命令细节以 `anp-cli schema` 为准；本表是功能总览。
 
-- 模块：`github.com/eccstartup/anp-cli`　命令：`anp-cli`　SDK：ANP Go v0.9.2
+- 模块：`github.com/eccstartup/anp-cli`　命令：`anp-cli`　SDK：ANP Go v0.9.3
 - 工作区：`~/.anp/`（`ANP_WORKSPACE` 覆盖）　后端：`ANP_BACKEND` 或 config `backend`
 - 输出：JSON envelope + `--format` / `--json` / `--jq` / `--dry-run`　（[docs/cli.md](cli.md)）
 - 协议：`anp-jsonrpc-v1`（[docs/protocol.md](protocol.md)）

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"time"
 
@@ -123,9 +124,74 @@ func extractVerificationPublicKey(doc map[string]any, did string) (anp.PublicKey
 		if method["id"] != methodID {
 			continue
 		}
+		// key-1 (Ed25519) is published as a Multikey (publicKeyMultibase) in
+		// e1-profile DID documents; fall back to JWK / base58 for other forms.
+		if multibase, ok := method["publicKeyMultibase"].(string); ok && multibase != "" {
+			decoded, err := base58Decode(stripMultibasePrefix(multibase))
+			if err != nil {
+				return anp.PublicKeyMaterial{}, fmt.Errorf("decode publicKeyMultibase for %s: %w", methodID, err)
+			}
+			if len(decoded) == 34 && decoded[0] == 0xed && decoded[1] == 0x01 {
+				decoded = decoded[2:]
+			}
+			return anp.PublicKeyMaterial{Type: anp.KeyTypeEd25519, Bytes: decoded}, nil
+		}
 		if jwk, ok := method["publicKeyJwk"].(map[string]any); ok {
 			return anp.PublicKeyFromJWK(jwk)
 		}
+		if base58, ok := method["publicKeyBase58"].(string); ok && base58 != "" {
+			decoded, err := base58Decode(base58)
+			if err != nil {
+				return anp.PublicKeyMaterial{}, fmt.Errorf("decode publicKeyBase58 for %s: %w", methodID, err)
+			}
+			return anp.PublicKeyMaterial{Type: anp.KeyTypeEd25519, Bytes: decoded}, nil
+		}
 	}
 	return anp.PublicKeyMaterial{}, fmt.Errorf("did document has no verification method %s", methodID)
+}
+
+func stripMultibasePrefix(value string) string {
+	if len(value) > 0 && value[0] == 'z' {
+		return value[1:]
+	}
+	return value
+}
+
+// base58Decode decodes Bitcoin base58 (multibase base58btc) to bytes. The ANP
+// SDK keeps this decoder in an internal package, so we replicate it here.
+func base58Decode(input string) ([]byte, error) {
+	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+	var alphabetIndex [128]int
+	for i := range alphabetIndex {
+		alphabetIndex[i] = -1
+	}
+	for i, c := range alphabet {
+		alphabetIndex[c] = i
+	}
+	if input == "" {
+		return []byte{}, nil
+	}
+	base := big.NewInt(58)
+	value := new(big.Int)
+	for _, char := range input {
+		if int(char) >= len(alphabetIndex) || alphabetIndex[char] < 0 {
+			return nil, fmt.Errorf("invalid base58 character %q", char)
+		}
+		value.Mul(value, base)
+		value.Add(value, big.NewInt(int64(alphabetIndex[char])))
+	}
+	decoded := value.Bytes()
+	leadingZeros := 0
+	for _, char := range input {
+		if char != rune(alphabet[0]) {
+			break
+		}
+		leadingZeros++
+	}
+	if leadingZeros == 0 {
+		return decoded, nil
+	}
+	result := make([]byte, leadingZeros+len(decoded))
+	copy(result[leadingZeros:], decoded)
+	return result, nil
 }

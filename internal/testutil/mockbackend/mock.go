@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -35,6 +36,9 @@ type Group struct {
 	OwnerDID string   `json:"owner_did"`
 	Members  []string `json:"members"`
 }
+
+// maxBodyBytes caps the in-memory size of an inbound JSON-RPC body.
+const maxBodyBytes = 1 << 20 // 1 MiB
 
 // Server is an in-memory ANP backend.
 type Server struct {
@@ -97,8 +101,18 @@ func (s *Server) Messages() []Message {
 }
 
 func (s *Server) handleRPC(w http.ResponseWriter, r *http.Request) {
-	body := make([]byte, r.ContentLength)
-	_, _ = r.Body.Read(body)
+	// Bound the read: ignore the client-supplied Content-Length (which may be
+	// -1 for chunked bodies) and cap at maxBodyBytes to avoid a huge or
+	// negative allocation.
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes+1))
+	if err != nil {
+		writeJSON(w, map[string]any{"jsonrpc": "2.0", "error": map[string]any{"code": -32700, "message": "read error"}, "id": nil})
+		return
+	}
+	if len(body) > maxBodyBytes {
+		writeJSON(w, map[string]any{"jsonrpc": "2.0", "error": map[string]any{"code": -32600, "message": "request too large"}, "id": nil})
+		return
+	}
 
 	headers := map[string]string{}
 	for key, values := range r.Header {
@@ -303,7 +317,11 @@ func (s *Server) inbox(params map[string]any) (any, error) {
 	scope, _ := params["scope"].(string)
 	limit := 100
 	if value, ok := params["limit"].(float64); ok {
-		limit = int(value)
+		// Guard the float->int conversion: NaN/Inf/out-of-range floats would
+		// otherwise produce implementation-dependent garbage.
+		if value >= 1 && value <= 1000 && value == value && value <= 1<<53 {
+			limit = int(value)
+		}
 	}
 	rows := []Message{}
 	for _, message := range s.messages {

@@ -89,9 +89,10 @@ func (a *App) runIDUse(cmd *Command, args []string) error {
 	}
 	// Persist the default in config.yaml so it wins over the identity index
 	// across commands, preserving existing backend/did_domain settings.
-	file := resolved.File
-	file.Identity = name
-	if err := config.WriteFile(resolved.Paths.ConfigFile, file); err != nil {
+	if err := config.UpdateFile(resolved.Paths.ConfigFile, func(f *config.File) error {
+		f.Identity = name
+		return nil
+	}); err != nil {
 		return err
 	}
 	data := map[string]any{"name": name}

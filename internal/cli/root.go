@@ -354,14 +354,17 @@ func (a *App) runConfigSet(cmd *cobra.Command, args []string) error {
 		plan := map[string]any{"config_file": resolved.Paths.ConfigFile, "set": map[string]any{"backend": backend, "did_domain": didDomain}}
 		return a.renderPlan(cmd.CommandPath(), format, plan, "Config update plan")
 	}
-	file := resolved.File
-	if backend != "" {
-		file.Backend = backend
-	}
-	if didDomain != "" {
-		file.DidDomain = didDomain
-	}
-	if err := appconfig.WriteFile(resolved.Paths.ConfigFile, file); err != nil {
+	file := appconfig.File{}
+	if err := appconfig.UpdateFile(resolved.Paths.ConfigFile, func(f *appconfig.File) error {
+		if backend != "" {
+			f.Backend = backend
+		}
+		if didDomain != "" {
+			f.DidDomain = didDomain
+		}
+		file = *f
+		return nil
+	}); err != nil {
 		return err
 	}
 	return a.renderSuccess(cmd.CommandPath(), format, map[string]any{"config_file": resolved.Paths.ConfigFile, "file": file}, "Configuration updated", nil)
@@ -412,8 +415,9 @@ func (a *App) runDescribe(cmd *cobra.Command, args []string) error {
 		if capabilities != "" {
 			next["capabilities"] = splitCSV(capabilities)
 		}
-		next["did"] = active.DID
 	}
+	// The signer's DID is always the active identity, regardless of --set.
+	next["did"] = active.DID
 	raw, _ := jsonMarshalIndent(next)
 	if err := os.WriteFile(adPath, raw, 0o600); err != nil {
 		return err

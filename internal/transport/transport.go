@@ -20,10 +20,20 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	anp "github.com/agent-network-protocol/anp/golang"
 	anpauth "github.com/agent-network-protocol/anp/golang/authentication"
 )
+
+// requestTimeout bounds every backend/HTTPS call so a stalled peer cannot hang
+// the CLI indefinitely.
+const requestTimeout = 30 * time.Second
+
+// maxResponseBytes caps how much of a backend/DID/ad.json response we buffer in
+// memory, so a misbehaving or malicious peer cannot OOM the CLI with an
+// unbounded body.
+const maxResponseBytes = 10 << 20 // 10 MiB
 
 // LoadPrivateKey decodes an Ed25519 PKCS#8 private key PEM for signing.
 func LoadPrivateKey(pemBytes []byte) (anp.PrivateKeyMaterial, error) {
@@ -85,7 +95,7 @@ func NewClient(baseURL string, signer *Signer) *Client {
 	if signer == nil {
 		signer = &Signer{}
 	}
-	return &Client{BaseURL: strings.TrimRight(baseURL, "/"), Signer: signer, HTTP: &http.Client{}}
+	return &Client{BaseURL: strings.TrimRight(baseURL, "/"), Signer: signer, HTTP: &http.Client{Timeout: requestTimeout}}
 }
 
 // Call invokes a JSON-RPC method and decodes the result into out. When signer
@@ -116,7 +126,7 @@ func (c *Client) Call(ctx context.Context, method string, params map[string]any,
 		return fmt.Errorf("backend request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readLimitedBody(resp.Body)
 	if err != nil {
 		return fmt.Errorf("read backend response: %w", err)
 	}
@@ -162,7 +172,7 @@ func ResolveDIDDocument(ctx context.Context, did string) (map[string]any, error)
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := (&http.Client{Timeout: requestTimeout}).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("resolve %s: %w", did, err)
 	}
@@ -170,8 +180,12 @@ func ResolveDIDDocument(ctx context.Context, did string) (map[string]any, error)
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("resolve %s: HTTP %d", did, resp.StatusCode)
 	}
+	raw, err := readLimitedBody(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read did document for %s: %w", did, err)
+	}
 	var doc map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("decode did document for %s: %w", did, err)
 	}
 	return doc, nil
@@ -206,7 +220,7 @@ func FetchJSON(ctx context.Context, resourceURL string) (map[string]any, error) 
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := (&http.Client{Timeout: requestTimeout}).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch %s: %w", resourceURL, err)
 	}
@@ -214,8 +228,12 @@ func FetchJSON(ctx context.Context, resourceURL string) (map[string]any, error) 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetch %s: HTTP %d", resourceURL, resp.StatusCode)
 	}
+	raw, err := readLimitedBody(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", resourceURL, err)
+	}
 	var doc map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("decode %s: %w", resourceURL, err)
 	}
 	return doc, nil
@@ -226,4 +244,17 @@ func truncate(value string, max int) string {
 		return value
 	}
 	return value[:max] + "..."
+}
+
+// readLimitedBody reads an HTTP body up to maxResponseBytes, returning an error
+// if the body exceeds the cap instead of buffering it unbounded.
+func readLimitedBody(r io.Reader) ([]byte, error) {
+	raw, err := io.ReadAll(io.LimitReader(r, maxResponseBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > maxResponseBytes {
+		return nil, fmt.Errorf("response exceeds %d bytes", maxResponseBytes)
+	}
+	return raw, nil
 }

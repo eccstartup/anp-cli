@@ -25,6 +25,8 @@ type IndexItem struct {
 	Name      string `json:"name"`
 	DID       string `json:"did"`
 	Handle    string `json:"handle,omitempty"`
+	Email     string `json:"email,omitempty"`
+	Phone     string `json:"phone,omitempty"`
 	CreatedAt string `json:"created_at"`
 }
 
@@ -32,6 +34,8 @@ type Identity struct {
 	Name        string         `json:"name"`
 	DID         string         `json:"did"`
 	Handle      string         `json:"handle,omitempty"`
+	Email       string         `json:"email,omitempty"`
+	Phone       string         `json:"phone,omitempty"`
 	DIDDocument map[string]any `json:"did_document"`
 	CreatedAt   string         `json:"created_at"`
 	Keys        KeyPaths       `json:"keys"`
@@ -234,10 +238,14 @@ func (s *Store) Load(name string) (*Identity, error) {
 	did, _ := doc["id"].(string)
 	index, _ := s.readIndex()
 	handle := ""
+	email := ""
+	phone := ""
 	createdAt := ""
 	for _, item := range index.Items {
 		if item.Name == name {
 			handle = item.Handle
+			email = item.Email
+			phone = item.Phone
 			createdAt = item.CreatedAt
 			break
 		}
@@ -256,6 +264,8 @@ func (s *Store) Load(name string) (*Identity, error) {
 		Name:        name,
 		DID:         did,
 		Handle:      handle,
+		Email:       email,
+		Phone:       phone,
 		CreatedAt:   createdAt,
 		DIDDocument: doc,
 		Keys:        keys,
@@ -276,6 +286,34 @@ func (s *Store) SetHandle(name string, handle string) error {
 	for i := range index.Items {
 		if index.Items[i].Name == name {
 			index.Items[i].Handle = handle
+			return s.writeIndex(index)
+		}
+	}
+	return fmt.Errorf("unknown identity %q", name)
+}
+
+// SetContact records optional local contact metadata (email/phone) for an
+// identity. These are local-only — they are never sent to the backend, whose
+// handle binding is authenticated purely by the caller's signature.
+func (s *Store) SetContact(name string, email string, phone string) error {
+	lock, err := s.lockIndex()
+	if err != nil {
+		return err
+	}
+	defer unlockIndex(lock)
+
+	index, err := s.readIndex()
+	if err != nil {
+		return err
+	}
+	for i := range index.Items {
+		if index.Items[i].Name == name {
+			if email != "" {
+				index.Items[i].Email = email
+			}
+			if phone != "" {
+				index.Items[i].Phone = phone
+			}
 			return s.writeIndex(index)
 		}
 	}

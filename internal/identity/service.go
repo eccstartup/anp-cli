@@ -129,7 +129,10 @@ func (s *Service) Resolve(ctx context.Context, resolved *config.Resolved, active
 }
 
 // RegisterHandle registers a WNS handle for the active identity via the backend.
-func (s *Service) RegisterHandle(ctx context.Context, resolved *config.Resolved, active *Identity, handle string, phone string, email string, otp string) (map[string]any, error) {
+// The backend authenticates purely by the caller's signature; email/phone are
+// optional local contact metadata recorded with the identity, never sent to
+// the backend.
+func (s *Service) RegisterHandle(ctx context.Context, resolved *config.Resolved, active *Identity, handle string, email string, phone string) (map[string]any, error) {
 	client, err := signedClient(resolved, active)
 	if err != nil {
 		return nil, err
@@ -138,15 +141,6 @@ func (s *Service) RegisterHandle(ctx context.Context, resolved *config.Resolved,
 		"handle": handle,
 		"did":    active.DID,
 	}
-	if phone != "" {
-		params["phone"] = phone
-	}
-	if email != "" {
-		params["email"] = email
-	}
-	if otp != "" {
-		params["otp"] = otp
-	}
 	result, err := client.CallRaw(ctx, "handle.register", params)
 	if err != nil {
 		return nil, err
@@ -154,25 +148,20 @@ func (s *Service) RegisterHandle(ctx context.Context, resolved *config.Resolved,
 	if err := s.Store.SetHandle(active.Name, handle); err != nil {
 		return nil, err
 	}
+	if err := s.Store.SetContact(active.Name, email, phone); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
-// RecoverHandle recovers a handle binding via the backend.
-func (s *Service) RecoverHandle(ctx context.Context, resolved *config.Resolved, active *Identity, handle string, phone string, email string, otp string) (map[string]any, error) {
+// RecoverHandle re-binds a handle via the backend, authenticated by the
+// caller's signature (only the current owner may re-bind).
+func (s *Service) RecoverHandle(ctx context.Context, resolved *config.Resolved, active *Identity, handle string) (map[string]any, error) {
 	client, err := signedClient(resolved, active)
 	if err != nil {
 		return nil, err
 	}
 	params := map[string]any{"handle": handle}
-	if phone != "" {
-		params["phone"] = phone
-	}
-	if email != "" {
-		params["email"] = email
-	}
-	if otp != "" {
-		params["otp"] = otp
-	}
 	return client.CallRaw(ctx, "handle.recover", params)
 }
 
@@ -223,6 +212,8 @@ func PublicView(identity *Identity) map[string]any {
 		"name":         identity.Name,
 		"did":          identity.DID,
 		"handle":       handle,
+		"email":        identity.Email,
+		"phone":        identity.Phone,
 		"did_document": identity.DIDDocument,
 		"created_at":   identity.CreatedAt,
 		"workspace":    filepath.Dir(identity.Keys.Key1Private),

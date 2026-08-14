@@ -36,13 +36,15 @@
 |--------|--------|--------|
 | `did.resolve` | `{target}`（DID 或 handle） | `{did, did_document}` |
 | `did.register_document` | `{did, did_document}` | `{did, status}` |
-| `handle.register` | `{handle, did, phone?, email?, otp?}` | `{did, handle, status}` |
-| `handle.recover` | `{handle, phone?, email?, otp?}` | `{did, handle, status}` |
+| `handle.register` | `{handle, did}` | `{did, handle, status}` |
+| `handle.recover` | `{handle}` | `{did, handle, status}` |
 
 - **handle 是 WNS 标准格式 `localpart.domain`**（如 `alice.example.com`），用 SDK `wns.ValidateHandle` 校验。
 - `handle.register` 冲突语义：handle 已被**其他 DID** 注册时返回 `handle_taken`（exit code 4）。
-- `handle.recover` 用 phone / email / recovery OTP 任一匹配注册时记录，验证通过后重新绑定到新身份。
+- handle 的注册 / 重绑定**认证完全靠私钥签名**（HTTP Message Signatures，`authDID`）；`handle.recover` 只允许当前 owner（同 DID）重新绑定，跨 DID 恢复因无独立验证通道（无短信/邮件验证）而不支持。
 - `did.register_document` 在 E2EE 初始化时调用，让对端可解析本机 DID 文档；新 DID 免签名注册（bootstrap），已存在 DID 需签名。
+
+> email / phone 是 **CLI 本地身份元数据**（联系方式，存于 `index.json`），不传给后端、不参与认证。CLI 的 `register --email/--phone` 仅把它们记录到本地身份。
 
 ### direct 消息（P3 base 明文 + P5 E2EE）
 

@@ -145,11 +145,10 @@ func (a *App) runRegister(cmd *Command, args []string) error {
 
 func (a *App) registerHandle(cmd *Command, format output.Format, shortcut bool) error {
 	handle, _ := cmd.Flags().GetString("handle")
-	phone, _ := cmd.Flags().GetString("phone")
 	email, _ := cmd.Flags().GetString("email")
-	otp, _ := cmd.Flags().GetString("otp")
+	phone, _ := cmd.Flags().GetString("phone")
 	if strings.TrimSpace(handle) == "" {
-		return output.NewExitError("invalid_argument", 2, "--handle is required.", "Run `anp-cli id register --handle <h> [--phone|--email]`.")
+		return output.NewExitError("invalid_argument", 2, "--handle is required.", "Run `anp-cli id register --handle <h> [--email|--phone]`.")
 	}
 	// WNS handles must be of the form localpart.domain (e.g. alice.example.com).
 	if _, _, err := wns.ValidateHandle(handle); err != nil {
@@ -171,7 +170,7 @@ func (a *App) registerHandle(cmd *Command, format output.Format, shortcut bool) 
 	if a.globals.DryRun {
 		return a.renderPlan(cmd.CommandPath(), format, plan, "Handle registration plan")
 	}
-	result, err := service.RegisterHandle(context.Background(), resolved, active, handle, phone, email, otp)
+	result, err := service.RegisterHandle(context.Background(), resolved, active, handle, email, phone)
 	if err != nil {
 		return friendlyHandleError(handle, err)
 	}
@@ -226,11 +225,8 @@ func suggestHandles(base string, count int) []string {
 func (a *App) runIDRecover(cmd *Command, args []string) error {
 	format := a.outputFormat(false)
 	handle, _ := cmd.Flags().GetString("handle")
-	phone, _ := cmd.Flags().GetString("phone")
-	email, _ := cmd.Flags().GetString("email")
-	otp, _ := cmd.Flags().GetString("otp")
 	if strings.TrimSpace(handle) == "" {
-		return output.NewExitError("invalid_argument", 2, "--handle is required.", "Run `anp-cli id recover --handle <h> [--phone|--email]`.")
+		return output.NewExitError("invalid_argument", 2, "--handle is required.", "Run `anp-cli id recover --handle <h>`.")
 	}
 	service, resolved, err := a.identityService()
 	if err != nil {
@@ -244,7 +240,7 @@ func (a *App) runIDRecover(cmd *Command, args []string) error {
 		plan := map[string]any{"handle": handle, "actions": []string{"recover handle binding with backend"}}
 		return a.renderPlan(cmd.CommandPath(), format, plan, "Handle recovery plan")
 	}
-	result, err := service.RecoverHandle(context.Background(), resolved, active, handle, phone, email, otp)
+	result, err := service.RecoverHandle(context.Background(), resolved, active, handle)
 	if err != nil {
 		return err
 	}

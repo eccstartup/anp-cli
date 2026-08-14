@@ -121,7 +121,11 @@ func (a *App) runIDResolve(cmd *Command, args []string) error {
 		plan := map[string]any{"target": target, "actions": []string{"resolve DID or WNS handle to a DID document"}}
 		return a.renderPlan(cmd.CommandPath(), format, plan, "Resolve plan")
 	}
-	doc, err := service.Resolve(context.Background(), resolved, target)
+	active, err := a.activeIdentity()
+	if err != nil {
+		return err
+	}
+	doc, err := service.Resolve(context.Background(), resolved, active, target)
 	if err != nil {
 		return err
 	}

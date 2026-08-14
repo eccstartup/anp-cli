@@ -94,7 +94,7 @@ func SignerForConfig(resolved *config.Resolved, active *Identity) (*transport.Si
 }
 
 // Resolve returns the DID document for a DID or WNS handle target.
-func (s *Service) Resolve(ctx context.Context, resolved *config.Resolved, target string) (map[string]any, error) {
+func (s *Service) Resolve(ctx context.Context, resolved *config.Resolved, active *Identity, target string) (map[string]any, error) {
 	target = strings.TrimSpace(target)
 	if target == "" {
 		return nil, fmt.Errorf("resolve target is empty")
@@ -106,8 +106,10 @@ func (s *Service) Resolve(ctx context.Context, resolved *config.Resolved, target
 		}
 		return doc, nil
 	}
-	// Handle or bare name: ask the backend.
-	client, err := backendClient(resolved)
+	// Handle or bare name: ask the backend with an authenticated (signed)
+	// request — did.resolve requires the caller's HTTP signature, unlike the
+	// unsigned local DID-document fetch above.
+	client, err := signedClient(resolved, active)
 	if err != nil {
 		return nil, err
 	}

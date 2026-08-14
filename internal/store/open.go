@@ -11,7 +11,7 @@ import (
 )
 
 // SchemaVersion is the current local database schema version.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // DB aliases database/sql.DB so callers can use *store.DB directly with the
 // store helpers.
@@ -64,6 +64,7 @@ func EnsureSchema(db *sql.DB) error {
 			thread_id TEXT,
 			type TEXT NOT NULL DEFAULT 'text',
 			text TEXT,
+			mentions_json TEXT,
 			secure INTEGER NOT NULL DEFAULT 0,
 			direction TEXT NOT NULL DEFAULT 'in',
 			read INTEGER NOT NULL DEFAULT 0,
@@ -101,7 +102,40 @@ func EnsureSchema(db *sql.DB) error {
 			return err
 		}
 	}
+	if err := migrateMessagesMentions(db); err != nil {
+		return err
+	}
 	if err := upsertSchemaVersion(db, SchemaVersion); err != nil {
+		return err
+	}
+	return nil
+}
+
+// migrateMessagesMentions adds the mentions_json column to databases created
+// before the P9 mentions feature (schema version 1).
+func migrateMessagesMentions(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(messages)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			cid       int
+			name      string
+			ctype     string
+			notnull   int
+			dfltValue any
+			pk        int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			return err
+		}
+		if name == "mentions_json" {
+			return nil
+		}
+	}
+	if _, err := db.Exec(`ALTER TABLE messages ADD COLUMN mentions_json TEXT`); err != nil {
 		return err
 	}
 	return nil

@@ -15,6 +15,7 @@ type Message struct {
 	ThreadID     string `json:"thread_id,omitempty"`
 	Type         string `json:"type"`
 	Text         string `json:"text"`
+	Mentions     []any  `json:"mentions,omitempty"`
 	Secure       bool   `json:"secure"`
 	Direction    string `json:"direction"`
 	Read         bool   `json:"read"`
@@ -55,13 +56,35 @@ type DiscoveredAgent struct {
 }
 
 func UpsertMessage(db *sql.DB, message Message) error {
-	_, err := db.Exec(`
-		INSERT INTO messages (message_id, sender_did, recipient_did, group_did, thread_id, type, text, secure, direction, read, sent_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(message_id) DO UPDATE SET text=excluded.text`,
+	mentionsJSON, err := marshalNullable(message.Mentions)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`
+		INSERT INTO messages (message_id, sender_did, recipient_did, group_did, thread_id, type, text, mentions_json, secure, direction, read, sent_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(message_id) DO UPDATE SET text=excluded.text, mentions_json=excluded.mentions_json`,
 		message.MessageID, message.SenderDID, nullIfEmpty(message.RecipientDID), nullIfEmpty(message.GroupDID), nullIfEmpty(message.ThreadID),
-		message.Type, message.Text, boolInt(message.Secure), message.Direction, boolInt(message.Read), message.SentAt, time.Now().UTC().Format(time.RFC3339))
+		message.Type, message.Text, mentionsJSON, boolInt(message.Secure), message.Direction, boolInt(message.Read), message.SentAt, time.Now().UTC().Format(time.RFC3339))
 	return err
+}
+
+// marshalNullable marshals a value to JSON, returning SQL NULL for an empty
+// slice or nil value.
+func marshalNullable(value any) (any, error) {
+	switch typed := value.(type) {
+	case nil:
+		return nil, nil
+	case []any:
+		if len(typed) == 0 {
+			return nil, nil
+		}
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return string(raw), nil
 }
 
 func nullIfEmpty(value string) any {
@@ -95,7 +118,7 @@ func ListMessages(db *sql.DB, filter MessageFilter) ([]Message, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-	query := "SELECT message_id, sender_did, recipient_did, group_did, thread_id, type, text, secure, direction, read, sent_at FROM messages"
+	query := "SELECT message_id, sender_did, recipient_did, group_did, thread_id, type, text, mentions_json, secure, direction, read, sent_at FROM messages"
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -109,17 +132,21 @@ func ListMessages(db *sql.DB, filter MessageFilter) ([]Message, error) {
 	messages := []Message{}
 	for rows.Next() {
 		var (
-			message   Message
-			recipient sql.NullString
-			group     sql.NullString
-			thread    sql.NullString
+			message      Message
+			recipient    sql.NullString
+			group        sql.NullString
+			thread       sql.NullString
+			mentionsJSON sql.NullString
 		)
-		if err := rows.Scan(&message.MessageID, &message.SenderDID, &recipient, &group, &thread, &message.Type, &message.Text, &message.Secure, &message.Direction, &message.Read, &message.SentAt); err != nil {
+		if err := rows.Scan(&message.MessageID, &message.SenderDID, &recipient, &group, &thread, &message.Type, &message.Text, &mentionsJSON, &message.Secure, &message.Direction, &message.Read, &message.SentAt); err != nil {
 			return nil, err
 		}
 		message.RecipientDID = recipient.String
 		message.GroupDID = group.String
 		message.ThreadID = thread.String
+		if mentionsJSON.Valid && mentionsJSON.String != "" {
+			_ = json.Unmarshal([]byte(mentionsJSON.String), &message.Mentions)
+		}
 		messages = append(messages, message)
 	}
 	return messages, rows.Err()

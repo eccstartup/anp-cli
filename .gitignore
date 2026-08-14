@@ -20,3 +20,22 @@ delivery/
 .claude/settings.local.json
 .claude/history.jsonl
 .claude/todos.json
+
+# ANP 运行时密钥 / 凭据（严禁提交）
+*.pem
+*.key
+*.jwk
+*.p12
+*.pfx
+
+# 本地 ANP 工作区残留（测试或 ANP_WORKSPACE 指向仓库时产生）
+e2ee/
+anp.db
+anp.db-shm
+anp.db-wal
+config.yaml
+config.yaml.lock
+identities/
+*.log
+*.pid
+

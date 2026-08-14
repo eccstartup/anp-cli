@@ -1,15 +1,16 @@
 # anp-cli — Agent Network Protocol CLI
 
-`anp` 是一个**协议级**命令行客户端：管理 DID 身份、消息、群组、agent 发现与签名，消费 [Agent Network Protocol](https://github.com/agent-network-protocol/anp)（ANP），不绑定任何具体网站。后端地址由 `ANP_BACKEND` 或 `~/.anp/config.yaml` 指定（例如 `ANP_BACKEND=https://awiki.ai` 即接入 awiki 网络）。
+`anp` 是一个**协议级**命令行客户端：管理 DID 身份、direct/群组消息（明文或端到端加密）、附件、agent 发现与签名，消费 [Agent Network Protocol](https://github.com/agent-network-protocol/anp)（ANP），不绑定任何具体网站。后端地址由 `ANP_BACKEND` 或 `~/.anp/config.yaml` 指定（例如 `ANP_BACKEND=https://awiki.ai` 即接入 awiki 网络）。
 
 单二进制、纯 Go（无 CGO）、基于 [ANP Go SDK v0.9.3](https://github.com/agent-network-protocol/anp/tree/main/golang)。命令组织、输出 envelope 与 shortcut 设计参照 [awiki-cli](https://github.com/AgentConnect/awiki-cli)。
 
 ## 特性
 
 - **身份**：e1 profile `did:wba` 身份生成与本地密钥管理；DID / WNS handle 解析、注册、恢复
-- **消息**：direct / group 收发，HTTP Message Signatures 签名，本地 SQLite 历史
-- **E2EE**：direct `--secure on` 端到端加密（X3DH + 双棘轮），`anp-cli e2ee init/status`；群组 E2EE 等 ANP SDK P6 v2（MLS）发布
-- **群组**：create / join / leave / members 生命周期
+- **消息**：direct 收发（默认明文 `transport-protected`，`--secure on` 走 E2EE X3DH + 双棘轮），HTTP Message Signatures 签名，本地 SQLite 历史
+- **群组**：`group create/join/add/send/...` 群组 base 语义（transport-protected），`--mention` 提及（P9）
+- **附件**：`attach send/download`（P7，控制面 + 数据面 HTTPS 上传下载 + sha-256 校验）
+- **E2EE**：direct E2EE（`anp.direct.e2ee.v1`），`anp-cli e2ee init/status`；群组 E2EE（MLS）CLI 侧待官方 Go SDK 更新（见 docs/protocol.md）
 - **发现**：抓取 `ad.json` / `interface.json` 并本地检索
 - **签名**：`proof sign / verify`（Ed25519）
 - **Runtime**：前台轮询 + 系统服务后台化（`anp-cli runtime install/start/stop/...`）
@@ -25,12 +26,12 @@
 ANP_BACKEND=https://awiki.ai anp-cli init          # 初始化工作区 + 随机生成身份名（如 agent-a3b9f2c1）
 ANP_BACKEND=https://awiki.ai anp-cli init myname   # 或指定身份名
 anp-cli whoami                                    # 看当前身份 DID
-anp-cli register --handle alice --email alice@example.com
+anp-cli register --handle alice.example.com --email alice@example.com
 anp-cli dm did:wba:example.com:agent:bob:e1_xxx "hello"
 anp-cli inbox
 anp-cli history did:wba:example.com:agent:bob:e1_xxx
 anp-cli e2ee init                                 # 发布 prekey bundle（收方先做）
-anp-cli msg send --to did:wba:example.com:agent:bob:e1_xxx --text "secret" --secure on
+anp-cli msg send --to did:wba:example.com:agent:bob:e1_xxx --text "secret"
 anp-cli setup                                     # 前台收消息循环
 anp-cli runtime install && anp-cli runtime start      # 或后台服务
 anp-cli proof sign ./release.txt --output release.proof.json
@@ -54,7 +55,7 @@ make test       # 单测 + 集成测试（含 mock 后端）
 make lint       # gofmt + go vet
 ```
 
-架构：`cmd/anp-cli` 入口；`internal/cli`（Cobra 命令层，只做参数 + 渲染）；`internal/identity` / `internal/message` / `internal/group` / `internal/discovery` / `internal/proof`（业务层，不打印输出）；`internal/transport`（HTTP JSON-RPC + 签名）；`internal/store`（SQLite）；`internal/cmdmeta`（命令目录 → schema）。
+架构：`cmd/anp-cli` 入口；`internal/cli`（Cobra 命令层，只做参数 + 渲染）；`internal/identity` / `internal/message` / `internal/discovery` / `internal/proof`（业务层，不打印输出）；`internal/transport`（HTTP JSON-RPC + 签名）；`internal/store`（SQLite）；`internal/cmdmeta`（命令目录 → schema）。
 
 ## 发布
 

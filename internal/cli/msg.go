@@ -23,12 +23,11 @@ func (a *App) msgService() (*message.Service, func(), error) {
 func (a *App) runMsgSend(cmd *Command, args []string) error {
 	format := a.outputFormat(false)
 	to, _ := cmd.Flags().GetString("to")
-	groupDID, _ := cmd.Flags().GetString("group")
 	text, _ := cmd.Flags().GetString("text")
 	msgType, _ := cmd.Flags().GetString("type")
-	secureRaw, _ := cmd.Flags().GetString("secure")
+	secure, _ := cmd.Flags().GetBool("secure")
 	return a.sendMessageCore(cmd, format, message.SendOptions{
-		To: to, Group: groupDID, Type: msgType, Text: text, Secure: strings.EqualFold(secureRaw, "on"),
+		To: to, Type: msgType, Text: text, Secure: secure,
 	})
 }
 
@@ -52,17 +51,23 @@ func (a *App) runDM(cmd *Command, args []string) error {
 }
 
 func (a *App) sendMessageCore(cmd *Command, format output.Format, options message.SendOptions) error {
-	if options.To == "" && options.Group == "" {
-		return output.NewExitError("invalid_argument", 2, "either --to or --group is required.", "Run `anp-cli msg send --to <did> --text \"...\"`.")
+	if options.To == "" {
+		return output.NewExitError("invalid_argument", 2, "--to is required.", "Run `anp-cli msg send --to <did> --text \"...\"`.")
 	}
 	service, closeDB, err := a.msgService()
 	if err != nil {
 		return err
 	}
 	defer closeDB()
+	actions := []string{"sign request with HTTP Message Signatures", "deliver via backend direct.send"}
+	if options.Secure {
+		actions = []string{"sign request with HTTP Message Signatures", "encrypt end-to-end via direct_e2ee", "deliver via backend direct.send"}
+	} else {
+		actions = []string{"sign request with HTTP Message Signatures", "attach application-layer origin proof", "deliver transport-protected plaintext via direct.send"}
+	}
 	plan := map[string]any{
-		"to": options.To, "group": options.Group, "text": options.Text, "secure": options.Secure,
-		"actions": []string{"sign request with HTTP Message Signatures", "deliver via backend msg.send", "persist outbound message locally"},
+		"to": options.To, "text": options.Text, "secure": options.Secure,
+		"actions": actions,
 	}
 	if a.globals.DryRun {
 		return a.renderPlan(cmd.CommandPath(), format, plan, "Message send plan")

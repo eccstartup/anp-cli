@@ -157,7 +157,7 @@ func (a *App) signedClient(resolved *appconfig.Resolved, active *identity.Identi
 	if resolved.Backend == "" {
 		return nil, fmt.Errorf("no backend configured; set ANP_BACKEND or `anp-cli config set --backend <url>`")
 	}
-	signer, err := identity.SignerFor(active)
+	signer, err := identity.SignerForConfig(resolved, active)
 	if err != nil {
 		return nil, err
 	}

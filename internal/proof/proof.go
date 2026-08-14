@@ -12,10 +12,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/eccstartup/anp-cli/internal/identity"
-	"github.com/eccstartup/anp-cli/internal/transport"
 	anp "github.com/agent-network-protocol/anp/golang"
 	anpauth "github.com/agent-network-protocol/anp/golang/authentication"
+	anpproof "github.com/agent-network-protocol/anp/golang/proof"
+	"github.com/eccstartup/anp-cli/internal/identity"
+	"github.com/eccstartup/anp-cli/internal/transport"
 )
 
 type SignatureProof struct {
@@ -90,6 +91,35 @@ func Verify(ctx context.Context, active *identity.Identity, did string, data []b
 type VerificationResult struct {
 	Valid     bool   `json:"valid"`
 	SignerDID string `json:"signer_did,omitempty"`
+}
+
+// OriginProofAuth generates the RFC 9421 application-layer origin proof for an
+// ANP message method (direct.send, group.send, group state changes, ...) and
+// returns the params "auth" object. It signs with the active identity's key-1
+// (assertionMethod) so receivers can verify the sender DID end-to-end,
+// independent of the transport-layer HTTP signature.
+func OriginProofAuth(active *identity.Identity, method string, meta, body map[string]any) (map[string]any, error) {
+	raw, err := os.ReadFile(active.Keys.Key1Private)
+	if err != nil {
+		return nil, fmt.Errorf("read identity key: %w", err)
+	}
+	key, err := anp.PrivateKeyFromPEM(string(raw))
+	if err != nil {
+		return nil, fmt.Errorf("parse identity key: %w", err)
+	}
+	keyID := active.DID + "#" + anpauth.VMKeyAuth
+	originProof, err := anpproof.GenerateRFC9421OriginProof(method, meta, body, key, keyID, anpproof.RFC9421OriginProofGenerationOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("generate origin proof: %w", err)
+	}
+	return map[string]any{
+		"scheme": "anp-rfc9421-origin-proof-v1",
+		"origin_proof": map[string]any{
+			"contentDigest":  originProof.ContentDigest,
+			"signatureInput": originProof.SignatureInput,
+			"signature":      originProof.Signature,
+		},
+	}, nil
 }
 
 // ParseProofFile loads a signature proof written by Sign's --output option.

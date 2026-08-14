@@ -29,10 +29,11 @@ type Paths struct {
 }
 
 type File struct {
-	Backend    string `yaml:"backend,omitempty" json:"backend,omitempty"`
-	DidDomain  string `yaml:"did_domain,omitempty" json:"did_domain,omitempty"`
-	ServiceDID string `yaml:"service_did,omitempty" json:"service_did,omitempty"`
-	Identity   string `yaml:"identity,omitempty" json:"identity,omitempty"`
+	Backend       string `yaml:"backend,omitempty" json:"backend,omitempty"`
+	DidDomain     string `yaml:"did_domain,omitempty" json:"did_domain,omitempty"`
+	ServiceDID    string `yaml:"service_did,omitempty" json:"service_did,omitempty"`
+	SignAsService bool   `yaml:"sign_as_service,omitempty" json:"sign_as_service,omitempty"`
+	Identity      string `yaml:"identity,omitempty" json:"identity,omitempty"`
 }
 
 type ValueSource struct {
@@ -49,6 +50,7 @@ type Resolved struct {
 	Backend        string                 `json:"backend"`
 	DidDomain      string                 `json:"did_domain"`
 	ServiceDID     string                 `json:"service_did,omitempty"`
+	SignAsService  bool                   `json:"sign_as_service,omitempty"`
 	ActiveIdentity string                 `json:"active_identity,omitempty"`
 	Sources        map[string]ValueSource `json:"sources,omitempty"`
 	Format         string                 `json:"format"`
@@ -59,6 +61,13 @@ type Overrides struct {
 	IdentityChanged bool
 	Format          string
 	FormatChanged   bool
+}
+
+// ServiceSigningEnabled reports whether the workspace explicitly opted in to
+// service-level HTTP signing (P8 federation). The default agent identity
+// signing path is preserved unless this returns true.
+func (r *Resolved) ServiceSigningEnabled() bool {
+	return r != nil && r.SignAsService && strings.TrimSpace(r.ServiceDID) != ""
 }
 
 // WorkspaceRoot returns the workspace root directory, honoring $ANP_WORKSPACE.
@@ -134,6 +143,10 @@ func Resolve(overrides Overrides) (*Resolved, error) {
 		resolved.ServiceDID = "did:wba:" + resolved.DidDomain + ":service:anp"
 	}
 	resolved.Sources["service_did"] = ValueSource{Source: "config", Value: resolved.ServiceDID}
+
+	// sign_as_service: explicit opt-in for service-level (P8) HTTP signing.
+	resolved.SignAsService = file.SignAsService
+	resolved.Sources["sign_as_service"] = ValueSource{Source: "config", Value: fmt.Sprintf("%t", file.SignAsService)}
 
 	// backend: $ANP_BACKEND > config file > default.
 	backend := strings.TrimSpace(os.Getenv(EnvBackend))

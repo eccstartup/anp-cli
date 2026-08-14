@@ -1,6 +1,7 @@
 // Package mockbackend provides a small in-memory ANP backend used by tests and
 // local smoke runs. It verifies HTTP Message Signatures with the SDK and
-// implements the documented JSON-RPC methods.
+// implements the ANP standard JSON-RPC methods: direct messaging (plaintext
+// base + E2EE) and group messaging (anp.group.base.v1).
 package mockbackend
 
 import (
@@ -17,24 +18,42 @@ import (
 	anpauth "github.com/agent-network-protocol/anp/golang/authentication"
 )
 
+// Message is a stored direct or group envelope.
 type Message struct {
-	MessageID    string `json:"message_id"`
-	SenderDID    string `json:"sender_did"`
-	RecipientDID string `json:"recipient_did,omitempty"`
-	GroupDID     string `json:"group_did,omitempty"`
-	Type         string `json:"type,omitempty"`
-	Text         string `json:"text,omitempty"`
-	Secure       bool   `json:"secure,omitempty"`
-	SentAt       string `json:"sent_at,omitempty"`
-	Meta         any    `json:"meta,omitempty"`
-	Body         any    `json:"body,omitempty"`
+	MessageID string         `json:"message_id,omitempty"`
+	Secure    bool           `json:"secure,omitempty"`
+	Meta      map[string]any `json:"meta,omitempty"`
+	Body      map[string]any `json:"body,omitempty"`
 }
 
-type Group struct {
-	GroupDID string   `json:"group_did"`
-	Name     string   `json:"name"`
-	OwnerDID string   `json:"owner_did"`
-	Members  []string `json:"members"`
+// groupRecord is the mock's in-memory group state.
+type groupRecord struct {
+	GroupDID     string
+	Profile      map[string]any
+	Policy       map[string]any
+	Members      []map[string]any // group_member objects
+	StateVersion int
+	EventSeq     int
+	CreatorDID   string
+}
+
+// objectRecord is the mock's in-memory attachment object state (P7 data plane).
+type objectRecord struct {
+	AttachmentID string
+	SlotID       string
+	UploadURI    string
+	ObjectURI    string
+	CommitToken  string
+	MimeType     string
+	Filename     string
+	Committed    bool
+	Bytes        []byte
+}
+
+// ticketRecord is an issued download ticket (P7 data plane).
+type ticketRecord struct {
+	Ticket       string
+	AttachmentID string
 }
 
 // maxBodyBytes caps the in-memory size of an inbound JSON-RPC body.
@@ -44,22 +63,29 @@ const maxBodyBytes = 1 << 20 // 1 MiB
 type Server struct {
 	mu             sync.Mutex
 	messages       []Message
-	groups         map[string]*Group
-	didDocs        map[string]map[string]any   // sender DID -> document (for signature verification)
-	handles        map[string]string           // handle -> did
-	prekeyBundles  map[string]map[string]any   // owner DID -> prekey bundle
-	oneTimePrekeys map[string][]map[string]any // owner DID -> queued OPKs
-	nextMessage    int
-	nextGroup      int
+	didDocs        map[string]map[string]any // sender DID -> document (for signature verification)
+	handles        map[string]string         // handle -> did
+	prekeyBundles  map[string]map[string]any // owner DID -> prekey bundle
+	oneTimePrekeys map[string][]map[string]any
+	groups         map[string]*groupRecord  // group DID -> group state
+	objects        map[string]*objectRecord // attachment_id -> object state
+	slots          map[string]*objectRecord // slot_id -> object state
+	tickets        map[string]*ticketRecord // ticket -> ticket state
+	baseURL        string                   // set by Start
+	nextMessage    int64
+	nextGroup      int64
 }
 
 func New() *Server {
 	return &Server{
-		groups:         map[string]*Group{},
 		didDocs:        map[string]map[string]any{},
 		handles:        map[string]string{},
 		prekeyBundles:  map[string]map[string]any{},
 		oneTimePrekeys: map[string][]map[string]any{},
+		groups:         map[string]*groupRecord{},
+		objects:        map[string]*objectRecord{},
+		slots:          map[string]*objectRecord{},
+		tickets:        map[string]*ticketRecord{},
 	}
 }
 
@@ -70,12 +96,14 @@ func (s *Server) AddIdentity(did string, doc map[string]any) {
 	s.didDocs[did] = doc
 }
 
-// Handler returns the /rpc HTTP handler.
+// Handler returns the /rpc HTTP handler plus the P7 data-plane routes.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/rpc", func(w http.ResponseWriter, r *http.Request) {
 		s.handleRPC(w, r)
 	})
+	mux.HandleFunc("/objects/upload/", s.handleUpload)
+	mux.HandleFunc("/objects/", s.handleDownload)
 	return mux
 }
 
@@ -90,6 +118,9 @@ func (s *Server) Start() (baseURL string, closeFn func(), err error) {
 		_ = server.Serve(listener)
 	}()
 	baseURL = "http://" + listener.Addr().String()
+	s.mu.Lock()
+	s.baseURL = baseURL
+	s.mu.Unlock()
 	return baseURL, func() { _ = server.Shutdown(context.Background()) }, nil
 }
 
@@ -171,20 +202,8 @@ func (s *Server) dispatch(method string, params map[string]any) (any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch method {
-	case "msg.send":
-		return s.send(params)
 	case "msg.inbox":
 		return s.inbox(params)
-	case "msg.history":
-		return s.history(params)
-	case "group.create":
-		return s.createGroup(params)
-	case "group.join":
-		return s.joinGroup(params)
-	case "group.leave":
-		return s.leaveGroup(params)
-	case "group.members":
-		return s.groupMembers(params)
 	case "did.resolve":
 		return s.resolveDID(params)
 	case "did.register_document":
@@ -199,6 +218,32 @@ func (s *Server) dispatch(method string, params map[string]any) (any, error) {
 		return s.publishPrekeyBundle(params)
 	case "direct.e2ee.get_prekey_bundle":
 		return s.getPrekeyBundle(params)
+	case "group.create":
+		return s.groupCreate(params)
+	case "group.get_info":
+		return s.groupGetInfo(params)
+	case "group.join":
+		return s.groupJoin(params)
+	case "group.add":
+		return s.groupAdd(params)
+	case "group.remove":
+		return s.groupRemove(params)
+	case "group.leave":
+		return s.groupLeave(params)
+	case "group.update_profile":
+		return s.groupUpdateProfile(params)
+	case "group.update_policy":
+		return s.groupUpdatePolicy(params)
+	case "group.send":
+		return s.groupSend(params)
+	case "attachment.create_slot":
+		return s.attachmentCreateSlot(params)
+	case "attachment.commit_object":
+		return s.attachmentCommitObject(params)
+	case "attachment.abort_object":
+		return s.attachmentAbortObject(params)
+	case "attachment.get_download_ticket":
+		return s.attachmentGetDownloadTicket(params)
 	default:
 		return nil, fmt.Errorf("unknown method %q", method)
 	}
@@ -214,35 +259,454 @@ func (s *Server) registerDocument(params map[string]any) (any, error) {
 	return map[string]any{"did": did, "status": "registered"}, nil
 }
 
-// directSend stores a direct E2EE envelope for the recipient's inbox.
+// directSend stores a direct envelope for the recipient's inbox and returns
+// the standard acknowledgment. Envelopes with profile anp.direct.e2ee.v1 are
+// marked secure; anp.direct.base.v1 envelopes are transport-protected
+// plaintext.
 func (s *Server) directSend(params map[string]any) (any, error) {
 	meta, _ := params["meta"].(map[string]any)
 	body, _ := params["body"].(map[string]any)
 	target, _ := meta["target"].(map[string]any)
 	peerDID, _ := target["did"].(string)
 	messageID, _ := meta["message_id"].(string)
-	senderDID, _ := meta["sender_did"].(string)
+	operationID, _ := meta["operation_id"].(string)
+	profile, _ := meta["profile"].(string)
 	if messageID == "" {
 		return nil, fmt.Errorf("message_id is required")
 	}
+	secure := profile != "" && profile != "anp.direct.base.v1"
 	s.nextMessage++
 	s.messages = append(s.messages, Message{
 		MessageID: messageID,
-		SenderDID: senderDID,
-		Secure:    true,
-		SentAt:    time.Now().UTC().Format(time.RFC3339),
+		Secure:    secure,
 		Meta:      meta,
 		Body:      body,
 	})
-	_ = peerDID
-	return map[string]any{"message_id": messageID, "state": "delivered", "sent_at": time.Now().UTC().Format(time.RFC3339)}, nil
+	return map[string]any{
+		"accepted":     true,
+		"message_id":   messageID,
+		"operation_id": operationID,
+		"target_did":   peerDID,
+		"accepted_at":  time.Now().UTC().Format(time.RFC3339),
+		"body":         body,
+	}, nil
+}
+
+// groupCreate implements group.create: registers a new group and makes the
+// sender its owner.
+func (s *Server) groupCreate(params map[string]any) (any, error) {
+	meta, _ := params["meta"].(map[string]any)
+	body, _ := params["body"].(map[string]any)
+	senderDID, _ := meta["sender_did"].(string)
+	profile, _ := body["group_profile"].(map[string]any)
+	policy, _ := body["group_policy"].(map[string]any)
+	if profile == nil {
+		profile = map[string]any{}
+	}
+	if policy == nil {
+		return nil, fmt.Errorf("group_policy is required")
+	}
+	s.nextGroup++
+	groupDID := fmt.Sprintf("did:wba:groups.example:group-%d", s.nextGroup)
+	rec := &groupRecord{
+		GroupDID:     groupDID,
+		Profile:      profile,
+		Policy:       policy,
+		Members:      []map[string]any{{"agent_did": senderDID, "role": "owner", "status": "active"}},
+		StateVersion: 1,
+		CreatorDID:   senderDID,
+	}
+	s.groups[groupDID] = rec
+	return map[string]any{
+		"group_did":           groupDID,
+		"group_state_version": rec.StateVersion,
+		"created_at":          time.Now().UTC().Format(time.RFC3339),
+		"creator_did":         senderDID,
+		"group_event_seq":     "0",
+		"group_profile":       profile,
+		"group_policy":        policy,
+	}, nil
+}
+
+func (s *Server) groupGetInfo(params map[string]any) (any, error) {
+	meta, _ := params["meta"].(map[string]any)
+	body, _ := params["body"].(map[string]any)
+	target, _ := meta["target"].(map[string]any)
+	groupDID, _ := target["did"].(string)
+	rec, ok := s.groups[groupDID]
+	if !ok {
+		return nil, fmt.Errorf("group.not_found")
+	}
+	result := map[string]any{
+		"group_did":           rec.GroupDID,
+		"group_state_version": rec.StateVersion,
+		"group_profile":       rec.Profile,
+	}
+	if include, _ := body["include_policy"].(bool); include {
+		result["group_policy"] = rec.Policy
+	}
+	if include, _ := body["include_member_list"].(bool); include {
+		result["member_list"] = rec.Members
+	}
+	result["member_count"] = fmt.Sprintf("%d", len(activeMembers(rec.Members)))
+	return result, nil
+}
+
+func (s *Server) groupJoin(params map[string]any) (any, error) {
+	meta, _ := params["meta"].(map[string]any)
+	senderDID, _ := meta["sender_did"].(string)
+	groupDID := s.groupTargetDID(meta)
+	rec, ok := s.groups[groupDID]
+	if !ok {
+		return nil, fmt.Errorf("group.not_found")
+	}
+	s.upsertMember(rec, senderDID, "member")
+	rec.StateVersion++
+	return map[string]any{
+		"group_did":           rec.GroupDID,
+		"member_did":          senderDID,
+		"membership_status":   "active",
+		"group_state_version": rec.StateVersion,
+	}, nil
+}
+
+func (s *Server) groupAdd(params map[string]any) (any, error) {
+	meta, _ := params["meta"].(map[string]any)
+	body, _ := params["body"].(map[string]any)
+	groupDID := s.groupTargetDID(meta)
+	rec, ok := s.groups[groupDID]
+	if !ok {
+		return nil, fmt.Errorf("group.not_found")
+	}
+	memberDID, _ := body["member_did"].(string)
+	if memberDID == "" {
+		handle, _ := body["member_handle"].(string)
+		if did, ok := s.handles[handle]; ok {
+			memberDID = did
+		} else {
+			return nil, fmt.Errorf("member handle not found")
+		}
+	}
+	role, _ := body["role"].(string)
+	if role == "" {
+		role = "member"
+	}
+	s.upsertMember(rec, memberDID, role)
+	rec.StateVersion++
+	return map[string]any{
+		"group_did":           rec.GroupDID,
+		"member_did":          memberDID,
+		"membership_status":   "active",
+		"group_state_version": rec.StateVersion,
+	}, nil
+}
+
+func (s *Server) groupRemove(params map[string]any) (any, error) {
+	meta, _ := params["meta"].(map[string]any)
+	body, _ := params["body"].(map[string]any)
+	groupDID := s.groupTargetDID(meta)
+	rec, ok := s.groups[groupDID]
+	if !ok {
+		return nil, fmt.Errorf("group.not_found")
+	}
+	memberDID, _ := body["member_did"].(string)
+	s.removeMember(rec, memberDID)
+	rec.StateVersion++
+	return map[string]any{
+		"group_did":           rec.GroupDID,
+		"member_did":          memberDID,
+		"group_state_version": rec.StateVersion,
+	}, nil
+}
+
+func (s *Server) groupLeave(params map[string]any) (any, error) {
+	meta, _ := params["meta"].(map[string]any)
+	senderDID, _ := meta["sender_did"].(string)
+	groupDID := s.groupTargetDID(meta)
+	rec, ok := s.groups[groupDID]
+	if !ok {
+		return nil, fmt.Errorf("group.not_found")
+	}
+	s.removeMember(rec, senderDID)
+	rec.StateVersion++
+	return map[string]any{
+		"group_did":           rec.GroupDID,
+		"leaver_did":          senderDID,
+		"group_state_version": rec.StateVersion,
+	}, nil
+}
+
+func (s *Server) groupUpdateProfile(params map[string]any) (any, error) {
+	meta, _ := params["meta"].(map[string]any)
+	body, _ := params["body"].(map[string]any)
+	groupDID := s.groupTargetDID(meta)
+	rec, ok := s.groups[groupDID]
+	if !ok {
+		return nil, fmt.Errorf("group.not_found")
+	}
+	patch, _ := body["group_profile_patch"].(map[string]any)
+	mergePatch(rec.Profile, patch)
+	rec.StateVersion++
+	return map[string]any{
+		"group_did":           rec.GroupDID,
+		"group_state_version": rec.StateVersion,
+		"group_profile":       rec.Profile,
+	}, nil
+}
+
+func (s *Server) groupUpdatePolicy(params map[string]any) (any, error) {
+	meta, _ := params["meta"].(map[string]any)
+	body, _ := params["body"].(map[string]any)
+	groupDID := s.groupTargetDID(meta)
+	rec, ok := s.groups[groupDID]
+	if !ok {
+		return nil, fmt.Errorf("group.not_found")
+	}
+	patch, _ := body["group_policy_patch"].(map[string]any)
+	mergePatch(rec.Policy, patch)
+	rec.StateVersion++
+	return map[string]any{
+		"group_did":           rec.GroupDID,
+		"group_state_version": rec.StateVersion,
+		"group_policy":        rec.Policy,
+	}, nil
+}
+
+func (s *Server) groupSend(params map[string]any) (any, error) {
+	meta, _ := params["meta"].(map[string]any)
+	body, _ := params["body"].(map[string]any)
+	groupDID := s.groupTargetDID(meta)
+	rec, ok := s.groups[groupDID]
+	if !ok {
+		return nil, fmt.Errorf("group.not_found")
+	}
+	messageID, _ := meta["message_id"].(string)
+	operationID, _ := meta["operation_id"].(string)
+	if messageID == "" {
+		return nil, fmt.Errorf("message_id is required")
+	}
+	rec.EventSeq++
+	s.nextMessage++
+	s.messages = append(s.messages, Message{
+		MessageID: messageID,
+		Secure:    false,
+		Meta:      meta,
+		Body:      body,
+	})
+	return map[string]any{
+		"accepted":            true,
+		"group_did":           rec.GroupDID,
+		"message_id":          messageID,
+		"operation_id":        operationID,
+		"group_event_seq":     fmt.Sprintf("%d", rec.EventSeq),
+		"group_state_version": rec.StateVersion,
+		"accepted_at":         time.Now().UTC().Format(time.RFC3339),
+	}, nil
+}
+
+func (s *Server) groupTargetDID(meta map[string]any) string {
+	target, _ := meta["target"].(map[string]any)
+	did, _ := target["did"].(string)
+	return did
+}
+
+// ---------------------------------------------------------------- attachment (P7)
+
+func (s *Server) attachmentCreateSlot(params map[string]any) (any, error) {
+	body, _ := params["body"].(map[string]any)
+	attachmentID, _ := body["attachment_id"].(string)
+	if attachmentID == "" {
+		return nil, fmt.Errorf("attachment_id is required")
+	}
+	if _, exists := s.objects[attachmentID]; exists {
+		return nil, fmt.Errorf("anp.attachment.slot_already_exists")
+	}
+	slotID := fmt.Sprintf("slot_%d", time.Now().UnixNano())
+	record := &objectRecord{
+		AttachmentID: attachmentID,
+		SlotID:       slotID,
+		UploadURI:    s.baseURL + "/objects/upload/" + slotID,
+		ObjectURI:    s.baseURL + "/objects/" + attachmentID,
+		CommitToken:  fmt.Sprintf("tok_%d", time.Now().UnixNano()),
+		MimeType:     stringField(body, "mime_type"),
+		Filename:     stringField(body, "filename"),
+	}
+	s.objects[attachmentID] = record
+	s.slots[slotID] = record
+	return map[string]any{
+		"attachment_id": attachmentID,
+		"slot_id":       slotID,
+		"upload_uri":    record.UploadURI,
+		"object_uri":    record.ObjectURI,
+		"commit_token":  record.CommitToken,
+		"expires_at":    time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339),
+	}, nil
+}
+
+func (s *Server) attachmentCommitObject(params map[string]any) (any, error) {
+	body, _ := params["body"].(map[string]any)
+	attachmentID, _ := body["attachment_id"].(string)
+	slotID, _ := body["slot_id"].(string)
+	commitToken, _ := body["commit_token"].(string)
+	record, ok := s.objects[attachmentID]
+	if !ok {
+		return nil, fmt.Errorf("anp.attachment.slot_not_found")
+	}
+	if record.SlotID != slotID {
+		return nil, fmt.Errorf("anp.attachment.slot_not_found")
+	}
+	if record.CommitToken != commitToken {
+		return nil, fmt.Errorf("anp.attachment.commit_token_invalid")
+	}
+	record.Committed = true
+	return map[string]any{
+		"committed":     true,
+		"attachment_id": attachmentID,
+		"object_uri":    record.ObjectURI,
+		"committed_at":  time.Now().UTC().Format(time.RFC3339),
+	}, nil
+}
+
+func (s *Server) attachmentAbortObject(params map[string]any) (any, error) {
+	body, _ := params["body"].(map[string]any)
+	attachmentID, _ := body["attachment_id"].(string)
+	record, ok := s.objects[attachmentID]
+	if !ok {
+		return nil, fmt.Errorf("anp.attachment.slot_not_found")
+	}
+	delete(s.objects, attachmentID)
+	delete(s.slots, record.SlotID)
+	return map[string]any{
+		"aborted":       true,
+		"attachment_id": attachmentID,
+		"aborted_at":    time.Now().UTC().Format(time.RFC3339),
+	}, nil
+}
+
+func (s *Server) attachmentGetDownloadTicket(params map[string]any) (any, error) {
+	body, _ := params["body"].(map[string]any)
+	attachmentID, _ := body["attachment_id"].(string)
+	record, ok := s.objects[attachmentID]
+	if !ok || !record.Committed {
+		return nil, fmt.Errorf("anp.attachment.grant_not_found")
+	}
+	ticket := fmt.Sprintf("tkt_%d", time.Now().UnixNano())
+	s.tickets[ticket] = &ticketRecord{Ticket: ticket, AttachmentID: attachmentID}
+	return map[string]any{
+		"download_ticket_b64u": ticket,
+		"expires_at":           time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339),
+		"ticket_binding": map[string]any{
+			"attachment_id": attachmentID,
+			"object_uri":    record.ObjectURI,
+		},
+	}, nil
+}
+
+// handleUpload stores object bytes at the data-plane upload URI (PUT).
+func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	slotID := strings.TrimPrefix(r.URL.Path, "/objects/upload/")
+	s.mu.Lock()
+	record, ok := s.slots[slotID]
+	s.mu.Unlock()
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes+1))
+	if err != nil || len(body) > maxBodyBytes {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	record.Bytes = body
+	s.mu.Unlock()
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleDownload serves committed object bytes with a valid bearer ticket.
+func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	attachmentID := strings.TrimPrefix(r.URL.Path, "/objects/")
+	auth := r.Header.Get("Authorization")
+	const prefix = "Bearer "
+	if !strings.HasPrefix(auth, prefix) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	ticket := strings.TrimSpace(strings.TrimPrefix(auth, prefix))
+	s.mu.Lock()
+	record, ok := s.objects[attachmentID]
+	ticketRec, ticketOK := s.tickets[ticket]
+	s.mu.Unlock()
+	if !ok || !record.Committed || !ticketOK || ticketRec.AttachmentID != attachmentID {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	s.mu.Lock()
+	bytes := append([]byte(nil), record.Bytes...)
+	s.mu.Unlock()
+	w.Header().Set("Content-Type", "application/octet-stream")
+	_, _ = w.Write(bytes)
+}
+
+func stringField(body map[string]any, key string) string {
+	value, _ := body[key].(string)
+	return value
+}
+
+func (s *Server) upsertMember(rec *groupRecord, did, role string) {
+	for i, member := range rec.Members {
+		if member["agent_did"] == did {
+			rec.Members[i]["role"] = role
+			rec.Members[i]["status"] = "active"
+			return
+		}
+	}
+	rec.Members = append(rec.Members, map[string]any{"agent_did": did, "role": role, "status": "active"})
+}
+
+func (s *Server) removeMember(rec *groupRecord, did string) {
+	for i, member := range rec.Members {
+		if member["agent_did"] == did {
+			rec.Members[i]["status"] = "removed"
+			return
+		}
+	}
+}
+
+func activeMembers(members []map[string]any) []map[string]any {
+	var active []map[string]any
+	for _, member := range members {
+		if member["status"] == "active" {
+			active = append(active, member)
+		}
+	}
+	return active
+}
+
+// mergePatch applies a shallow RFC 7386-style merge of patch into target.
+func mergePatch(target map[string]any, patch map[string]any) {
+	for key, value := range patch {
+		if value == nil {
+			delete(target, key)
+			continue
+		}
+		target[key] = value
+	}
 }
 
 func (s *Server) publishPrekeyBundle(params map[string]any) (any, error) {
-	meta, _ := params["meta"].(map[string]any)
 	body, _ := params["body"].(map[string]any)
 	bundle, _ := body["prekey_bundle"].(map[string]any)
 	ownerDID, _ := bundle["owner_did"].(string)
+	bundleID, _ := bundle["bundle_id"].(string)
 	if ownerDID == "" {
 		return nil, fmt.Errorf("prekey_bundle.owner_did is required")
 	}
@@ -256,8 +720,12 @@ func (s *Server) publishPrekeyBundle(params map[string]any) (any, error) {
 		}
 		s.oneTimePrekeys[ownerDID] = append(s.oneTimePrekeys[ownerDID], list...)
 	}
-	_ = meta
-	return map[string]any{"status": "published", "owner_did": ownerDID}, nil
+	return map[string]any{
+		"published":    true,
+		"owner_did":    ownerDID,
+		"bundle_id":    bundleID,
+		"published_at": time.Now().UTC().Format(time.RFC3339),
+	}, nil
 }
 
 func (s *Server) getPrekeyBundle(params map[string]any) (any, error) {
@@ -266,9 +734,9 @@ func (s *Server) getPrekeyBundle(params map[string]any) (any, error) {
 	requireOPK, _ := body["require_opk"].(bool)
 	bundle, ok := s.prekeyBundles[targetDID]
 	if !ok {
-		return nil, fmt.Errorf("prekey bundle not found for %s", targetDID)
+		return nil, fmt.Errorf("anp.direct.e2ee.bundle_not_found")
 	}
-	result := map[string]any{"prekey_bundle": bundle}
+	result := map[string]any{"target_did": targetDID, "prekey_bundle": bundle}
 	if requireOPK {
 		queue := s.oneTimePrekeys[targetDID]
 		if len(queue) > 0 {
@@ -281,40 +749,8 @@ func (s *Server) getPrekeyBundle(params map[string]any) (any, error) {
 	return result, nil
 }
 
-func (s *Server) send(params map[string]any) (any, error) {
-	to, _ := params["to"].(string)
-	group, _ := params["group"].(string)
-	body, _ := params["body"].(map[string]any)
-	secure, _ := params["secure"].(bool)
-	text := ""
-	if body != nil {
-		if value, ok := body["text"].(string); ok {
-			text = value
-		}
-	}
-	if to == "" && group == "" {
-		return nil, fmt.Errorf("either to or group is required")
-	}
-	s.nextMessage++
-	message := Message{
-		MessageID: fmt.Sprintf("msg_%d", s.nextMessage),
-		SenderDID: "", // resolved by caller context; set below
-		Type:      "text",
-		Text:      text,
-		Secure:    secure,
-		SentAt:    time.Now().UTC().Format(time.RFC3339),
-	}
-	s.messages = append(s.messages, message)
-	return map[string]any{
-		"message_id": message.MessageID,
-		"thread_id":  "thread_" + firstNonEmpty(to, group),
-		"sent_at":    message.SentAt,
-		"state":      "delivered",
-	}, nil
-}
-
+// inbox returns stored messages as standard {server_seq, meta, body} envelopes.
 func (s *Server) inbox(params map[string]any) (any, error) {
-	scope, _ := params["scope"].(string)
 	limit := 100
 	if value, ok := params["limit"].(float64); ok {
 		// Guard the float->int conversion: NaN/Inf/out-of-range floats would
@@ -323,58 +759,18 @@ func (s *Server) inbox(params map[string]any) (any, error) {
 			limit = int(value)
 		}
 	}
-	rows := []Message{}
-	for _, message := range s.messages {
-		if scope == "direct" && message.GroupDID != "" {
-			continue
-		}
-		if scope == "group" && message.GroupDID == "" {
-			continue
-		}
-		rows = append(rows, message)
+	rows := []map[string]any{}
+	for index, message := range s.messages {
+		rows = append(rows, map[string]any{
+			"server_seq": index + 1,
+			"meta":       message.Meta,
+			"body":       message.Body,
+		})
 		if len(rows) >= limit {
 			break
 		}
 	}
 	return map[string]any{"messages": rows}, nil
-}
-
-func (s *Server) history(params map[string]any) (any, error) {
-	rows := []Message{}
-	_ = params
-	rows = append(rows, s.messages...)
-	return map[string]any{"messages": rows}, nil
-}
-
-func (s *Server) createGroup(params map[string]any) (any, error) {
-	name, _ := params["name"].(string)
-	s.nextGroup++
-	groupDID := fmt.Sprintf("did:wba:mock:group:g%d", s.nextGroup)
-	group := &Group{GroupDID: groupDID, Name: name, Members: []string{}}
-	s.groups[groupDID] = group
-	return map[string]any{"group_did": groupDID, "name": name, "members": group.Members}, nil
-}
-
-func (s *Server) joinGroup(params map[string]any) (any, error) {
-	group, _ := params["group"].(string)
-	if s.groups[group] == nil {
-		return nil, fmt.Errorf("group not found")
-	}
-	return map[string]any{"status": "joined"}, nil
-}
-
-func (s *Server) leaveGroup(params map[string]any) (any, error) {
-	group, _ := params["group"].(string)
-	delete(s.groups, group)
-	return map[string]any{"status": "left"}, nil
-}
-
-func (s *Server) groupMembers(params map[string]any) (any, error) {
-	group, _ := params["group"].(string)
-	if s.groups[group] == nil {
-		return nil, fmt.Errorf("group not found")
-	}
-	return map[string]any{"members": []any{}}, nil
 }
 
 func (s *Server) resolveDID(params map[string]any) (any, error) {
@@ -414,15 +810,6 @@ func getHeader(headers map[string]string, key string) string {
 		}
 	}
 	return ""
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return "unknown"
 }
 
 func writeJSON(w http.ResponseWriter, value any) {

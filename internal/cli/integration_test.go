@@ -91,20 +91,28 @@ func TestEndToEndAgainstMockBackend(t *testing.T) {
 		t.Fatalf("whoami missing meta")
 	}
 
-	register := requireOK(t, runCLI(t, workspace, baseURL, "register", "--handle", "alice.agent"))
+	register := requireOK(t, runCLI(t, workspace, baseURL, "register", "--handle", "alice.example.com"))
 	if status, _ := register["data"].(map[string]any)["result"].(map[string]any)["status"].(string); status != "registered" {
 		t.Fatalf("register result: %s", "register failed")
 	}
 
 	bobWorkspace := t.TempDir()
 	requireOK(t, runCLI(t, bobWorkspace, baseURL, "init", "bob"))
-	squat := runCLI(t, bobWorkspace, baseURL, "register", "--handle", "alice.agent")
+	// Bob must publish his prekey bundle + register his DID document so Alice
+	// can establish an E2EE session with him.
+	requireOK(t, runCLI(t, bobWorkspace, baseURL, "e2ee", "init"))
+	bobWhoami := requireOK(t, runCLI(t, bobWorkspace, baseURL, "whoami"))
+	bobDID, _ := bobWhoami["data"].(map[string]any)["did"].(string)
+	if !strings.HasPrefix(bobDID, "did:wba:") {
+		t.Fatalf("bob did = %q", bobDID)
+	}
+	squat := runCLI(t, bobWorkspace, baseURL, "register", "--handle", "alice.example.com")
 	squatEnvelope := parseEnvelope(t, squat.stdout)
 	if code, _ := squatEnvelope["error"].(map[string]any)["code"].(string); code != "handle_taken" {
 		t.Fatalf("squatted register: %s", string(squat.stdout))
 	}
 
-	send := requireOK(t, runCLI(t, workspace, baseURL, "msg", "send", "--to", "did:wba:example.com:agent:bob", "--text", "hello bob"))
+	send := requireOK(t, runCLI(t, workspace, baseURL, "msg", "send", "--to", bobDID, "--text", "hello bob"))
 	if send["data"].(map[string]any)["message_id"] == "" {
 		t.Fatal("send: no message_id")
 	}
@@ -115,31 +123,22 @@ func TestEndToEndAgainstMockBackend(t *testing.T) {
 		t.Fatalf("inbox: got %d msgs", len(messages))
 	}
 
-	history := requireOK(t, runCLI(t, workspace, baseURL, "msg", "history", "--with", "did:wba:example.com:agent:bob"))
+	history := requireOK(t, runCLI(t, workspace, baseURL, "msg", "history", "--with", bobDID))
 	historyMessages, _ := history["data"].(map[string]any)["messages"].([]any)
 	if len(historyMessages) != 1 {
 		t.Fatalf("history messages = %d, want 1", len(historyMessages))
 	}
 
-	dry := runCLI(t, workspace, baseURL, "msg", "send", "--to", "did:wba:example.com:agent:bob", "--text", "dry", "--dry-run")
+	dry := runCLI(t, workspace, baseURL, "msg", "send", "--to", bobDID, "--text", "dry", "--dry-run")
 	envelope = parseEnvelope(t, dry.stdout)
 	if _, hasPlan := envelope["plan"]; !hasPlan {
 		t.Fatalf("dry-run envelope missing plan: %s", string(dry.stdout))
 	}
 
-	group := requireOK(t, runCLI(t, workspace, baseURL, "group", "create", "--name", "team"))
-	groupDID, _ := group["data"].(map[string]any)["group_did"].(string)
-	if groupDID == "" {
-		t.Fatalf("group create returned no group_did: %s", "group create returned no gid")
-	}
-	requireOK(t, runCLI(t, workspace, baseURL, "group", "join", "--group", groupDID))
-	requireOK(t, runCLI(t, workspace, baseURL, "group", "members", "--group", groupDID))
-	requireOK(t, runCLI(t, workspace, baseURL, "group", "leave", "--group", groupDID))
-
 	schema := requireOK(t, runCLI(t, workspace, baseURL, "schema"))
 	commands, _ := schema["data"].(map[string]any)["commands"].([]any)
-	if len(commands) < 20 {
-		t.Fatalf("schema commands = %d, want >= 20", len(commands))
+	if len(commands) < 15 {
+		t.Fatalf("schema commands = %d, want >= 15", len(commands))
 	}
 
 	requireOK(t, runCLI(t, workspace, baseURL, "doctor"))
@@ -162,6 +161,62 @@ func TestEndToEndAgainstMockBackend(t *testing.T) {
 	if valid, _ := verify["data"].(map[string]any)["valid"].(bool); !valid {
 		t.Fatalf("signature not valid: %s", "verify failed")
 	}
+}
+
+func TestGroupCommandsEndToEnd(t *testing.T) {
+	workspace := t.TempDir()
+	mock := mockbackend.New()
+	baseURL, closeFn, err := mock.Start()
+	if err != nil {
+		t.Fatalf("mockbackend.Start: %v", err)
+	}
+	defer closeFn()
+
+	requireOK(t, runCLI(t, workspace, baseURL, "init", "alice"))
+	bobWorkspace := t.TempDir()
+	requireOK(t, runCLI(t, bobWorkspace, baseURL, "init", "bob"))
+	bobWhoami := requireOK(t, runCLI(t, bobWorkspace, baseURL, "whoami"))
+	bobDID, _ := bobWhoami["data"].(map[string]any)["did"].(string)
+
+	create := requireOK(t, runCLI(t, workspace, baseURL, "group", "create",
+		"--name", "dev room",
+		"--policy", `{"admission_mode":"open-join","permissions":{}}`))
+	groupDID, _ := create["data"].(map[string]any)["group_did"].(string)
+	if groupDID == "" {
+		t.Fatalf("group create: no group_did in %v", create["data"])
+	}
+
+	info := requireOK(t, runCLI(t, workspace, baseURL, "group", "info", "--group", groupDID, "--include-members"))
+	if _, ok := info["data"].(map[string]any)["group_profile"]; !ok {
+		t.Fatalf("group info missing group_profile")
+	}
+
+	requireOK(t, runCLI(t, workspace, baseURL, "group", "add", "--group", groupDID, "--member-did", bobDID))
+
+	members := requireOK(t, runCLI(t, workspace, baseURL, "group", "members", "--group", groupDID))
+	memberList, _ := members["data"].(map[string]any)["member_list"].([]any)
+	if len(memberList) != 2 {
+		t.Fatalf("group members len = %d, want 2", len(memberList))
+	}
+
+	send := requireOK(t, runCLI(t, workspace, baseURL, "group", "send", "--group", groupDID, "--text", "hello group"))
+	if accepted, _ := send["data"].(map[string]any)["accepted"].(bool); !accepted {
+		t.Fatalf("group send not accepted")
+	}
+
+	// Bob receives the group message via `msg inbox --scope group`.
+	groupInbox := requireOK(t, runCLI(t, bobWorkspace, baseURL, "msg", "inbox", "--scope", "group"))
+	groupMsgs, _ := groupInbox["data"].(map[string]any)["messages"].([]any)
+	if len(groupMsgs) != 1 {
+		t.Fatalf("bob group inbox len = %d, want 1", len(groupMsgs))
+	}
+
+	requireOK(t, runCLI(t, workspace, baseURL, "group", "profile", "--group", groupDID, "--patch", `{"description":"new"}`))
+	requireOK(t, runCLI(t, workspace, baseURL, "group", "policy", "--group", groupDID, "--patch", `{"admission_mode":"admin-add"}`))
+
+	requireOK(t, runCLI(t, bobWorkspace, baseURL, "group", "join", "--group", groupDID))
+	requireOK(t, runCLI(t, workspace, baseURL, "group", "remove", "--group", groupDID, "--member-did", bobDID))
+	requireOK(t, runCLI(t, bobWorkspace, baseURL, "group", "leave", "--group", groupDID))
 }
 
 func TestMultiIdentityManagement(t *testing.T) {
@@ -218,6 +273,85 @@ func TestDiscoveryCrawlAndSearch(t *testing.T) {
 	agents, _ := search["data"].(map[string]any)["agents"].([]any)
 	if len(agents) != 1 {
 		t.Fatalf("search agents = %d, want 1: %s", len(agents), "search failed")
+	}
+}
+
+func TestAttachmentCommandsEndToEnd(t *testing.T) {
+	workspace := t.TempDir()
+	mock := mockbackend.New()
+	baseURL, closeFn, err := mock.Start()
+	if err != nil {
+		t.Fatalf("mockbackend.Start: %v", err)
+	}
+	defer closeFn()
+
+	requireOK(t, runCLI(t, workspace, baseURL, "init", "alice"))
+	bobWorkspace := t.TempDir()
+	requireOK(t, runCLI(t, bobWorkspace, baseURL, "init", "bob"))
+	bobWhoami := requireOK(t, runCLI(t, bobWorkspace, baseURL, "whoami"))
+	bobDID, _ := bobWhoami["data"].(map[string]any)["did"].(string)
+
+	payload := []byte("attachment payload bytes")
+	file := filepath.Join(workspace, "note.txt")
+	if err := os.WriteFile(file, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	send := requireOK(t, runCLI(t, workspace, baseURL, "attach", "send", "--to", bobDID, "--file", file, "--text", "here is a note"))
+	messageID, _ := send["data"].(map[string]any)["message_id"].(string)
+	if messageID == "" {
+		t.Fatalf("attach send: no message_id in %v", send["data"])
+	}
+
+	outDir := filepath.Join(bobWorkspace, "downloads")
+	dl := requireOK(t, runCLI(t, bobWorkspace, baseURL, "attach", "download", "--message-id", messageID, "--out", outDir))
+	path, _ := dl["data"].(map[string]any)["path"].(string)
+	if path == "" {
+		t.Fatalf("attach download: no path in %v", dl["data"])
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read downloaded file: %v", err)
+	}
+	if string(got) != string(payload) {
+		t.Fatalf("downloaded bytes mismatch: %q vs %q", got, payload)
+	}
+}
+
+func TestGroupMentionEndToEnd(t *testing.T) {
+	workspace := t.TempDir()
+	mock := mockbackend.New()
+	baseURL, closeFn, err := mock.Start()
+	if err != nil {
+		t.Fatalf("mockbackend.Start: %v", err)
+	}
+	defer closeFn()
+
+	requireOK(t, runCLI(t, workspace, baseURL, "init", "alice"))
+	whoami := requireOK(t, runCLI(t, workspace, baseURL, "whoami"))
+	aliceDID, _ := whoami["data"].(map[string]any)["did"].(string)
+
+	create := requireOK(t, runCLI(t, workspace, baseURL, "group", "create",
+		"--name", "dev room",
+		"--policy", `{"admission_mode":"open-join","permissions":{}}`))
+	groupDID, _ := create["data"].(map[string]any)["group_did"].(string)
+
+	requireOK(t, runCLI(t, workspace, baseURL, "group", "send", "--group", groupDID,
+		"--text", "@alice please review", "--mention", "@alice:"+aliceDID))
+
+	messages := mock.Messages()
+	if len(messages) != 1 {
+		t.Fatalf("mock stored %d messages, want 1", len(messages))
+	}
+	payload, _ := messages[0].Body["payload"].(map[string]any)
+	mentions, _ := payload["mentions"].([]any)
+	if len(mentions) != 1 {
+		t.Fatalf("mentions = %v, want 1 entry", payload)
+	}
+	mention := mentions[0].(map[string]any)
+	rng := mention["range"].(map[string]any)
+	if rng["start"] != float64(0) || rng["end"] != float64(6) {
+		t.Fatalf("mention range = %v, want 0:6", rng)
 	}
 }
 

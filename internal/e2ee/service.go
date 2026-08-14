@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/eccstartup/anp-cli/internal/config"
-	"github.com/eccstartup/anp-cli/internal/identity"
-	"github.com/eccstartup/anp-cli/internal/transport"
 	anp "github.com/agent-network-protocol/anp/golang"
 	anpauth "github.com/agent-network-protocol/anp/golang/authentication"
 	directe2ee "github.com/agent-network-protocol/anp/golang/direct_e2ee"
 	anpproof "github.com/agent-network-protocol/anp/golang/proof"
+	"github.com/eccstartup/anp-cli/internal/config"
+	"github.com/eccstartup/anp-cli/internal/identity"
+	"github.com/eccstartup/anp-cli/internal/transport"
 )
 
 // Re-exported wire content types so callers do not need the SDK import.

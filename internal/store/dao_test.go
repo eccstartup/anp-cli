@@ -53,6 +53,47 @@ func TestSchemaAndMessageRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMessageMentionsRoundTrip(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "anp.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+	message := Message{
+		MessageID: "m-mention",
+		SenderDID: "did:wba:a:alice",
+		GroupDID:  "did:wba:g:team",
+		Type:      "text",
+		Text:      "@alice hi",
+		Mentions: []any{
+			map[string]any{
+				"id":     "men_1",
+				"range":  map[string]any{"start": 0, "end": 6, "unit": "unicode_code_point"},
+				"target": map[string]any{"kind": "human", "did": "did:wba:a:alice"},
+			},
+		},
+		Direction: "in",
+	}
+	if err := UpsertMessage(db, message); err != nil {
+		t.Fatalf("UpsertMessage: %v", err)
+	}
+	messages, err := ListMessages(db, MessageFilter{Scope: "group", Limit: 10})
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("messages len = %d, want 1", len(messages))
+	}
+	if len(messages[0].Mentions) != 1 {
+		t.Fatalf("mentions len = %d, want 1", len(messages[0].Mentions))
+	}
+	mention := messages[0].Mentions[0].(map[string]any)
+	rng := mention["range"].(map[string]any)
+	if rng["start"] != float64(0) || rng["end"] != float64(6) {
+		t.Fatalf("mention range = %v", rng)
+	}
+}
+
 func TestGroupAndContactRoundTrip(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "anp.db"))
 	if err != nil {

@@ -100,13 +100,14 @@ export ANP_BACKEND=http://127.0.0.1:54321   # 换成你终端 A 看到的实际�
 - [ ] `anp-cli dm "$BOB" "via dm"` → ✅ message_id（shortcut）
 - [ ] `anp-cli msg inbox --format table` → ✅ 看到两条 out 消息
 - [ ] `anp-cli msg history --with "$BOB"` → ✅ 与 bob 的会话记录
-- [ ] `anp-cli msg send --text x` → ✅ 报错 invalid_argument（缺 --to/--group）
+- [ ] `anp-cli msg send --text x` → ✅ 报错 invalid_argument（缺 --to）
 
 ### 第 6 组 群组
-- [ ] `GID=$(anp-cli group create --name team --jq '.data.group_did' | tr -d '"')`
+- [ ] `GID=$(anp-cli group create --name team --policy '{"admission_mode":"open-join"}' --jq '.data.group_did' | tr -d '"')`
 - [ ] `anp-cli group join --group "$GID"` → ✅
-- [ ] `anp-cli group members --group "$GID" --format table` → ✅
-- [ ] `anp-cli msg send --group "$GID" --text "hi team"` → ✅
+- [ ] `anp-cli group info --group "$GID" --include-members --format table` → ✅
+- [ ] `anp-cli group send --group "$GID" --text "hi team"` → ✅
+- [ ] `anp-cli group send --group "$GID" --text "@bob hi" --mention "@bob:human:$BOB"` → ✅ 提及（P9）
 - [ ] `anp-cli group leave --group "$GID"` → ✅
 
 ### 第 7 组 E2EE（direct 加密）
@@ -114,7 +115,8 @@ export ANP_BACKEND=http://127.0.0.1:54321   # 换成你终端 A 看到的实际�
 - [ ] `ANP_WORKSPACE=/tmp/anp-hw-bob anp-cli e2ee init` → ✅ bob 也发布
 - [ ] `anp-cli msg send --to "$BOB" --text "top secret" --secure on` → ✅
 - [ ] `ANP_WORKSPACE=/tmp/anp-hw-bob anp-cli msg inbox --scope direct` → ✅ 看到明文 "top secret"（secure=true）
-- [ ] `anp-cli msg send --group "$GID" --text x --secure on` → ✅ 报错含 `P6 v2 public release is blocked`（SDK 官方封锁群加密）
+- [ ] `anp-cli attach send --to "$BOB" --file /tmp/h.txt --text "附件"` → ✅ 附件（P7）
+- [ ] `ANP_WORKSPACE=/tmp/anp-hw-bob anp-cli attach download --message-id <mid>` → ✅ 取回文件、sha-256 校验通过
 
 ### 第 8 组 签名/验签
 - [ ] `echo hi > /tmp/h.txt; anp-cli proof sign /tmp/h.txt --output /tmp/h.proof.json` → ✅

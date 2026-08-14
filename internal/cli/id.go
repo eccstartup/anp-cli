@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agent-network-protocol/anp/golang/wns"
 	"github.com/eccstartup/anp-cli/internal/config"
 	"github.com/eccstartup/anp-cli/internal/identity"
 	"github.com/eccstartup/anp-cli/internal/output"
@@ -145,6 +146,10 @@ func (a *App) registerHandle(cmd *Command, format output.Format, shortcut bool) 
 	otp, _ := cmd.Flags().GetString("otp")
 	if strings.TrimSpace(handle) == "" {
 		return output.NewExitError("invalid_argument", 2, "--handle is required.", "Run `anp-cli id register --handle <h> [--phone|--email]`.")
+	}
+	// WNS handles must be of the form localpart.domain (e.g. alice.example.com).
+	if _, _, err := wns.ValidateHandle(handle); err != nil {
+		return output.NewExitError("invalid_argument", 2, fmt.Sprintf("invalid handle %q: %v", handle, err), "Use a WNS handle of the form localpart.domain (e.g. alice.example.com).")
 	}
 	service, resolved, err := a.identityService()
 	if err != nil {

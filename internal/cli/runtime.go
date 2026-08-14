@@ -77,7 +77,6 @@ func syncOnce(service *message.Service) {
 			"message_id":    m.MessageID,
 			"sender_did":    m.SenderDID,
 			"recipient_did": m.RecipientDID,
-			"group_did":     m.GroupDID,
 			"type":          m.Type,
 			"secure":        m.Secure,
 			"direction":     m.Direction,

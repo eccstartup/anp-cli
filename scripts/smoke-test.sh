@@ -135,11 +135,11 @@ run "config show 看到 did_domain" -- "$BIN" config show
 
 # ---------------------------------------------------------------- 4. 身份注册 + 抢注
 say "== 4. handle 注册 / 抢注 =="
-run "alice 注册 handle" -- "$BIN" register --handle alice --email a@example.com
+run "alice 注册 handle" -- "$BIN" register --handle alice.example.com --email a@example.com
 ANP_ENV=(ANP_WORKSPACE="$WORK_B" ANP_BACKEND="$MOCK_URL")
 run "bob init" -- "$BIN" init bob
-run_err "bob 抢注同一 handle → handle_taken" handle_taken -- "$BIN" register --handle alice
-run "bob 换变体注册成功" -- "$BIN" register --handle alice.1
+run_err "bob 抢注同一 handle → handle_taken" handle_taken -- "$BIN" register --handle alice.example.com
+run "bob 换变体注册成功" -- "$BIN" register --handle alice.1.example.com
 
 # ---------------------------------------------------------------- 5. describe
 say "== 5. Agent Description =="
@@ -148,43 +148,27 @@ run "describe --set 写入 ad.json" -- "$BIN" describe --set '{"name":"agent ali
 run "describe 读取 ad.json" -- "$BIN" describe
 run "describe --name 局部更新" -- "$BIN" describe --name "alice v2"
 
-# ---------------------------------------------------------------- 6. 消息（direct + 历史）
+# ---------------------------------------------------------------- 6. 消息（direct E2EE）
 say "== 6. 消息 =="
 ALICE_DID="$(env ANP_WORKSPACE="$WORK_A" "$BIN" whoami --jq '.data.did' | tr -d '"')"
 BOB_DID="$(env ANP_WORKSPACE="$WORK_B" "$BIN" whoami --jq '.data.did' | tr -d '"')"
-ANP_ENV=(ANP_WORKSPACE="$WORK_A" ANP_BACKEND="$MOCK_URL")
-run "msg send 发消息给 bob" -- "$BIN" msg send --to "$BOB_DID" --text "hello bob"
-run "dm shortcut" -- "$BIN" dm "$BOB_DID" "via dm"
-run "msg inbox" -- "$BIN" msg inbox
-run "msg history --with bob" -- "$BIN" msg history --with "$BOB_DID"
-run "history shortcut" -- "$BIN" history "$BOB_DID"
-run_err "msg send 缺目标 → invalid_argument" invalid_argument -- "$BIN" msg send --text x
-ANP_ENV=(ANP_WORKSPACE="$WORK_B" ANP_BACKEND="$MOCK_URL")
-run "bob inbox 可见" -- "$BIN" inbox
-
-# ---------------------------------------------------------------- 7. 群组
-say "== 7. 群组 =="
-ANP_ENV=(ANP_WORKSPACE="$WORK_A" ANP_BACKEND="$MOCK_URL")
-run "group create" -- "$BIN" group create --name "team"
-GID="$(env ANP_WORKSPACE="$WORK_A" ANP_BACKEND="$MOCK_URL" "$BIN" group create --name team2 --jq '.data.group_did' | tr -d '"')"
-run "group join" -- "$BIN" group join --group "$GID"
-run "group members" -- "$BIN" group members --group "$GID"
-run "group send 消息" -- "$BIN" msg send --group "$GID" --text "hi team"
-run "group leave" -- "$BIN" group leave --group "$GID"
-
-# ---------------------------------------------------------------- 8. E2EE
-say "== 8. E2EE =="
+# E2EE 建链前提：双方发布 prekey bundle + 注册 DID 文档
 ANP_ENV=(ANP_WORKSPACE="$WORK_A" ANP_BACKEND="$MOCK_URL")
 run "alice e2ee init 发布 bundle" -- "$BIN" e2ee init
 ANP_ENV=(ANP_WORKSPACE="$WORK_B" ANP_BACKEND="$MOCK_URL")
 run "bob e2ee init 发布 bundle" -- "$BIN" e2ee init
 run "bob e2ee status（无会话）" -- "$BIN" e2ee status --with "$ALICE_DID"
 ANP_ENV=(ANP_WORKSPACE="$WORK_A" ANP_BACKEND="$MOCK_URL")
-run "alice msg send --secure on" -- "$BIN" msg send --to "$BOB_DID" --text "top secret" --secure on
+run "msg send 发消息给 bob（E2EE 加密）" -- "$BIN" msg send --to "$BOB_DID" --text "hello bob"
+run "msg inbox" -- "$BIN" msg inbox
+run_err "msg send 缺目标 → invalid_argument" invalid_argument -- "$BIN" msg send --text x
 ANP_ENV=(ANP_WORKSPACE="$WORK_B" ANP_BACKEND="$MOCK_URL")
 run "bob inbox 解密后可见明文" -- "$BIN" msg inbox --scope direct
 ANP_ENV=(ANP_WORKSPACE="$WORK_A" ANP_BACKEND="$MOCK_URL")
-run_msg "群组 --secure on → SDK P6 门禁报错" "P6 v2 public release is blocked" -- "$BIN" msg send --group "$GID" --text x --secure on
+run "alice inbox 收 ACK 确认会话" -- "$BIN" msg inbox
+run "dm shortcut（会话已确认）" -- "$BIN" dm "$BOB_DID" "via dm"
+run "msg history --with bob" -- "$BIN" msg history --with "$BOB_DID"
+run "history shortcut" -- "$BIN" history "$BOB_DID"
 
 # ---------------------------------------------------------------- 9. 签名
 say "== 9. proof 签名/验签 =="

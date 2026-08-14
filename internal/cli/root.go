@@ -84,6 +84,8 @@ func (a *App) commandFromSpec(spec cmdmeta.CommandSpec) *cobra.Command {
 		switch flag.Type {
 		case "string":
 			command.Flags().String(flag.Name, flag.Default, flag.Usage)
+		case "string-array":
+			command.Flags().StringArray(flag.Name, nil, flag.Usage)
 		case "bool":
 			defaultValue := strings.EqualFold(flag.Default, "true")
 			command.Flags().Bool(flag.Name, defaultValue, flag.Usage)
@@ -164,12 +166,28 @@ func (a *App) handlerFor(spec cmdmeta.CommandSpec) func(*cobra.Command, []string
 		return a.runMsgHistory
 	case "group.create":
 		return a.runGroupCreate
+	case "group.info":
+		return a.runGroupInfo
 	case "group.join":
 		return a.runGroupJoin
+	case "group.add":
+		return a.runGroupAdd
+	case "group.remove":
+		return a.runGroupRemove
 	case "group.leave":
 		return a.runGroupLeave
+	case "group.profile":
+		return a.runGroupProfile
+	case "group.policy":
+		return a.runGroupPolicy
+	case "group.send":
+		return a.runGroupSend
 	case "group.members":
 		return a.runGroupMembers
+	case "attach.send":
+		return a.runAttachSend
+	case "attach.download":
+		return a.runAttachDownload
 	case "runtime.listen":
 		return a.runRuntimeListen
 	case "runtime.listen-service":
@@ -237,6 +255,8 @@ func (a *App) runInit(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
 		name = args[0]
 	}
+	serviceDID, _ := cmd.Flags().GetString("service-did")
+	signAsService, _ := cmd.Flags().GetBool("sign-as-service")
 	plan := map[string]any{
 		"workspace": resolved.Paths.Root,
 		"config":    resolved.Paths.ConfigFile,
@@ -259,6 +279,12 @@ func (a *App) runInit(cmd *cobra.Command, args []string) error {
 		}
 		if resolved.DidDomain != "" {
 			file.DidDomain = resolved.DidDomain
+		}
+		if serviceDID != "" {
+			file.ServiceDID = serviceDID
+		}
+		if signAsService {
+			file.SignAsService = true
 		}
 		if err := appconfig.WriteFile(resolved.Paths.ConfigFile, file); err != nil {
 			return err
@@ -349,6 +375,8 @@ func (a *App) runConfigShow(cmd *cobra.Command, args []string) error {
 		"config_error":     resolved.ConfigError,
 		"backend":          resolved.Backend,
 		"did_domain":       resolved.DidDomain,
+		"service_did":      resolved.ServiceDID,
+		"sign_as_service":  resolved.SignAsService,
 		"active_identity":  resolved.ActiveIdentity,
 		"default_identity": current,
 		"sources":          resolved.Sources,
@@ -360,15 +388,17 @@ func (a *App) runConfigSet(cmd *cobra.Command, args []string) error {
 	format := a.outputFormat(false)
 	backend, _ := cmd.Flags().GetString("backend")
 	didDomain, _ := cmd.Flags().GetString("did-domain")
-	if backend == "" && didDomain == "" {
-		return output.NewExitError("invalid_argument", 2, "config set requires --backend or --did-domain.", "Run `anp-cli config set --backend <url>` to persist the backend.")
+	serviceDID, _ := cmd.Flags().GetString("service-did")
+	signAsService, _ := cmd.Flags().GetBool("sign-as-service")
+	if backend == "" && didDomain == "" && serviceDID == "" && !signAsService {
+		return output.NewExitError("invalid_argument", 2, "config set requires --backend, --did-domain, --service-did, or --sign-as-service.", "Run `anp-cli config set --backend <url>` to persist the backend.")
 	}
 	resolved, err := a.resolveConfig()
 	if err != nil {
 		return err
 	}
 	if a.globals.DryRun {
-		plan := map[string]any{"config_file": resolved.Paths.ConfigFile, "set": map[string]any{"backend": backend, "did_domain": didDomain}}
+		plan := map[string]any{"config_file": resolved.Paths.ConfigFile, "set": map[string]any{"backend": backend, "did_domain": didDomain, "service_did": serviceDID, "sign_as_service": signAsService}}
 		return a.renderPlan(cmd.CommandPath(), format, plan, "Config update plan")
 	}
 	file := appconfig.File{}
@@ -378,6 +408,12 @@ func (a *App) runConfigSet(cmd *cobra.Command, args []string) error {
 		}
 		if didDomain != "" {
 			f.DidDomain = didDomain
+		}
+		if serviceDID != "" {
+			f.ServiceDID = serviceDID
+		}
+		if signAsService {
+			f.SignAsService = true
 		}
 		file = *f
 		return nil

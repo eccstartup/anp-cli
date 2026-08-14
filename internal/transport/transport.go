@@ -49,11 +49,15 @@ func LoadPrivateKey(pemBytes []byte) (anp.PrivateKeyMaterial, error) {
 type Signer struct {
 	DidDocument map[string]any
 	PrivateKey  anp.PrivateKeyMaterial
+	// KeyID overrides the default authentication key ID selected from the DID
+	// document. When set, it is used verbatim as the keyid in Signature-Input,
+	// enabling service-level (P8 federation) signing with a serviceDid.
+	KeyID string
 }
 
 func (s *Signer) SignHeaders(method string, requestURL string, body []byte) (map[string]string, error) {
 	base := map[string]string{"Content-Type": "application/json"}
-	headers, err := anpauth.GenerateHTTPSignatureHeaders(s.DidDocument, requestURL, method, s.PrivateKey, base, body, anpauth.HttpSignatureOptions{})
+	headers, err := anpauth.GenerateHTTPSignatureHeaders(s.DidDocument, requestURL, method, s.PrivateKey, base, body, anpauth.HttpSignatureOptions{KeyID: s.KeyID})
 	if err != nil {
 		return nil, fmt.Errorf("sign request: %w", err)
 	}

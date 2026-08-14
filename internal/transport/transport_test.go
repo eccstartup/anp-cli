@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	anp "github.com/agent-network-protocol/anp/golang"
@@ -66,6 +67,28 @@ func TestClientCallSigned(t *testing.T) {
 	}
 	if result["ok"] != true {
 		t.Fatalf("result = %v", result)
+	}
+}
+
+func TestSignerKeyIDOverride(t *testing.T) {
+	bundle, err := anpauth.CreateDidWBADocument("example.com", anpauth.DidDocumentOptions{PathSegments: []string{"agent", "alice"}})
+	if err != nil {
+		t.Fatalf("CreateDidWBADocument: %v", err)
+	}
+	privateKey, err := anp.PrivateKeyFromPEM(bundle.Keys[anpauth.VMKeyAuth].PrivateKeyPEM)
+	if err != nil {
+		t.Fatalf("PrivateKeyFromPEM: %v", err)
+	}
+	serviceDID := "did:wba:example.com:service:anp"
+	signer := &Signer{DidDocument: bundle.DidDocument, PrivateKey: privateKey, KeyID: serviceDID + "#key-1"}
+	requestURL := "http://mock.example.com/rpc"
+	body := []byte(`{"jsonrpc":"2.0","method":"ping","params":{},"id":1}`)
+	headers, err := signer.SignHeaders(http.MethodPost, requestURL, body)
+	if err != nil {
+		t.Fatalf("SignHeaders: %v", err)
+	}
+	if !strings.Contains(headers["Signature-Input"], "keyid=\""+serviceDID+"#key-1\"") {
+		t.Fatalf("Signature-Input = %q, want service keyid", headers["Signature-Input"])
 	}
 }
 

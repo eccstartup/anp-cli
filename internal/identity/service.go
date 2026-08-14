@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	anpauth "github.com/agent-network-protocol/anp/golang/authentication"
 	"github.com/eccstartup/anp-cli/internal/config"
 	"github.com/eccstartup/anp-cli/internal/transport"
 )
@@ -74,6 +75,22 @@ func SignerFor(identity *Identity) (*transport.Signer, error) {
 		return nil, err
 	}
 	return &transport.Signer{DidDocument: identity.DIDDocument, PrivateKey: key}, nil
+}
+
+// SignerForConfig builds a request signer, applying service-level signing when
+// the workspace explicitly opts in (P8 federation). When sign_as_service is
+// enabled, the outer HTTP signature keyid uses the serviceDid authentication
+// method instead of the agent identity's key-1; the default agent signing path
+// is otherwise unchanged.
+func SignerForConfig(resolved *config.Resolved, active *Identity) (*transport.Signer, error) {
+	signer, err := SignerFor(active)
+	if err != nil {
+		return nil, err
+	}
+	if resolved.ServiceSigningEnabled() {
+		signer.KeyID = strings.TrimSpace(resolved.ServiceDID) + "#" + anpauth.VMKeyAuth
+	}
+	return signer, nil
 }
 
 // Resolve returns the DID document for a DID or WNS handle target.
@@ -169,7 +186,7 @@ func signedClient(resolved *config.Resolved, active *Identity) (*transport.Clien
 	if err != nil {
 		return nil, err
 	}
-	signer, err := SignerFor(active)
+	signer, err := SignerForConfig(resolved, active)
 	if err != nil {
 		return nil, err
 	}

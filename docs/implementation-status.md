@@ -19,14 +19,16 @@
 | `id register --handle` / `register` | ✅ | 是 | 注册 handle；**冲突返回 `handle_taken` + 备选建议** |
 | `id recover --handle` | ✅ | 是 | 恢复 handle |
 | `describe` / `--set` / 局部字段 | ✅ | 否 | 读写 `identities/<name>/ad.json` |
-| `msg send --to/--group` / `dm` | ✅ | 是 | 签名 JSON-RPC 投递 + 本地落库 |
+| `msg send --to` / `dm` | ✅ | 是 | direct 消息（默认明文 transport-protected）+ 本地落库 |
 | `msg send --secure on` | ✅ | 是 | direct E2EE（X3DH + 双棘轮），自动建链/ACK |
-| `msg inbox` / `inbox` | ✅ | 是* | 同步后端 + 读本地；后端不可达仍可读本地 |
+| `msg inbox` / `inbox` | ✅ | 是* | 同步后端 + 读本地；`--scope all/direct/group` |
 | `msg history --with` / `history` | ✅ | 是* | 本地会话历史 |
 | `e2ee init` | ✅ | 是 | 注册 DID 文档 + 发布 prekey bundle（收方必做） |
 | `e2ee status --with` | ✅ | 是 | 与对端的会话状态 |
-| `group create/join/members/leave` | ✅ | 是 | 群生命周期 + 本地缓存 |
-| `group ... --secure on` | ⛔ | — | **SDK P6 v2（MLS）官方门禁封锁**，返回权威报错 |
+| `group create/info/join/add/remove/leave/profile/policy/send` | ✅ | 是 | 群组 base 语义（transport-protected 明文，标准默认） |
+| `group send --mention` | ✅ | 是 | 群消息提及（P9，body.payload.mentions） |
+| `attach send --file` / `attach download` | ✅ | 是 | 附件（P7，控制面 + 数据面 + sha-256 校验） |
+| 群组 E2EE（`group.e2ee.*`） | ⛔ | — | **CLI 侧 MLS 计算待官方 Go SDK 更新**（anp-mls 二进制被新版 Rust crate 移除，Go 无纯 Go MLS）；server 控制面已实现 |
 | `runtime listen` / `setup` | ✅ | 是* | 前台轮询收消息循环（`--once` 单次） |
 | `runtime install/start/stop/restart/status/uninstall` | ✅ | 是 | 系统服务（LaunchAgent/systemd/Windows Service） |
 | `runtime heartbeat` | ✅ | 是* | 单次心跳 |

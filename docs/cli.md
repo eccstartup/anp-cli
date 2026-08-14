@@ -47,31 +47,36 @@
 | `anp-cli describe --set '<json>'` | 整篇覆盖 |
 | `anp-cli describe --name/--description/--capabilities` | 局部更新 |
 
-### 消息
+### 消息（direct，明文默认 + E2EE 可选）
 | 命令 | 说明 |
 |------|------|
-| `anp-cli msg send --to <did> --text "..."` | 发 direct 消息 |
-| `anp-cli msg send --group <gid> --text "..."` | 发群消息 |
-| `anp-cli msg send ... --secure on` | E2EE 标记 |
+| `anp-cli msg send --to <did> --text "..."` | 发 direct 消息（默认明文 transport-protected） |
+| `anp-cli msg send --to <did> --text "..." --secure on` | 发 E2EE 加密 direct 消息 |
 | `anp-cli msg inbox [--scope all\|direct\|group] [--unread] [--limit]` | 收件箱 |
 | `anp-cli msg history --with <did> [--limit]` | 会话历史 |
 
 ### 群组
 | 命令 | 说明 |
 |------|------|
-| `anp-cli group create --name <n> [--members '[...]']` | 建群 |
-| `anp-cli group join --group <gid>` | 入群 |
-| `anp-cli group members --group <gid>` | 成员 |
-| `anp-cli group leave --group <gid>` | 退群 |
+| `anp-cli group create --name <n> --policy '<json>'` | 建群（group_policy MUST） |
+| `anp-cli group info --group <gid> [--include-members]` | 群组信息 |
+| `anp-cli group join / add / remove / leave` | 成员管理 |
+| `anp-cli group profile / policy` | 更新资料 / 策略 |
+| `anp-cli group send --group <gid> --text "..." [--mention ...]` | 群消息（可带 P9 提及） |
 
-### E2EE（端到端加密）
+### 附件（P7）
+| 命令 | 说明 |
+|------|------|
+| `anp-cli attach send --to <did> --file <path> [--text]` | 上传附件并发消息（create_slot→PUT→commit→direct.send manifest） |
+| `anp-cli attach download --message-id <mid> [--out <dir>]` | 下载附件（get_ticket→GET→sha-256 校验） |
+
+### E2EE（direct 端到端加密）
 | 命令 | 说明 |
 |------|------|
 | `anp-cli e2ee init` | 注册 DID 文档 + 发布 prekey bundle（收方必做） |
 | `anp-cli e2ee status --with <did>` | 与对端的会话状态 |
-| `anp-cli msg send --to <did> --text "..." --secure on` | 加密发送 direct 消息 |
 
-E2EE 流程：收方先 `anp-cli e2ee init`；发方 `msg send --secure on` 自动完成 X3DH 建链；收方 `anp-cli inbox` 自动解密并回发 ACK。密文只在两端解密，后端只见 ciphertext。
+E2EE 流程：收方先 `anp-cli e2ee init`；发方 `msg send --secure on` 自动完成 X3DH 建链；收方 `anp-cli inbox` 自动解密并回发 ACK。密文只在两端解密，后端只见 ciphertext。群组 E2EE（MLS）CLI 侧待官方 Go SDK 更新。
 
 ### Runtime
 | 命令 | 说明 |
